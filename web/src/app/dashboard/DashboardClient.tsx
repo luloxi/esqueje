@@ -187,11 +187,10 @@ export default function DashboardClient() {
                   <div className="space-y-1 text-xs text-[var(--muted)]">
                     {connecting.toLowerCase() === 'lace' ? (
                       <>
-                        <p>→ Lace no abre un popup en la página.</p>
-                        <p>→ <strong className="text-[var(--foreground)]">Hacé clic en el ícono de Lace</strong> en la barra de extensiones del navegador (arriba a la derecha).</p>
-                        <p>→ Si no lo ves, clic en el ícono de extensiones 🧩 y buscá Lace.</p>
-                        <p>→ Aprobá la conexión dentro del popup de la extensión.</p>
-                        <p>→ Asegurate de que Lace esté desbloqueado y tenga una cuenta configurada.</p>
+                        <p>→ Lace abre una <strong className="text-[var(--foreground)]">ventana separada</strong> para pedir tu aprobación.</p>
+                        <p>→ Buscá esa ventana en la barra de tareas o entre tus ventanas abiertas.</p>
+                        <p>→ Dentro de esa ventana vas a ver un botón <strong className="text-[var(--foreground)]">"Authorize"</strong> o <strong className="text-[var(--foreground)]">"Connect"</strong> — hacé clic ahí.</p>
+                        <p>→ Si la ventana no apareció, tu navegador puede estar bloqueando popups. Buscá el ícono de popup bloqueado en la barra de dirección y permití los popups de este sitio.</p>
                       </>
                     ) : (
                       <p>→ Revisá si apareció un popup de <span className="capitalize">{connecting}</span> en tu navegador y aprobá la conexión.</p>
