@@ -61,14 +61,14 @@ export default function DashboardClient() {
     setConnecting(name);
     setShowWalletPicker(false);
     try {
-      // Race between wallet enable and a 30-second timeout.
-      // Lace (and some other wallets) show a popup that hangs forever if ignored.
+      // 90-second timeout. Lace shows the approval request INSIDE the extension popup —
+      // the user has to click the Lace icon in the browser toolbar to see and approve it.
       const w = await Promise.race([
         BrowserWallet.enable(name),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error(
-            `La wallet no respondió en 30 segundos. Revisá si apareció un popup de ${name} en tu navegador y aprobá la conexión.`
-          )), 30_000)
+            `La wallet no respondió. Asegurate de haber aprobado la conexión dentro de la extensión ${name}.`
+          )), 90_000)
         ),
       ]);
       setWallet(w);
@@ -180,10 +180,24 @@ export default function DashboardClient() {
             <div className="space-y-1">
               <div className="font-mono text-xs uppercase tracking-widest text-[var(--muted)]">Sin wallet</div>
                 {connecting ? (
-                <p className="text-sm text-[var(--accent)]">
-                  Esperando aprobación de <span className="capitalize font-semibold">{connecting}</span>…
-                  revisá si apareció un popup en el navegador.
-                </p>
+                <div className="space-y-2">
+                  <p className="text-sm text-[var(--accent)]">
+                    Esperando aprobación de <span className="capitalize font-semibold">{connecting}</span>…
+                  </p>
+                  <div className="space-y-1 text-xs text-[var(--muted)]">
+                    {connecting.toLowerCase() === 'lace' ? (
+                      <>
+                        <p>→ Lace no abre un popup en la página.</p>
+                        <p>→ <strong className="text-[var(--foreground)]">Hacé clic en el ícono de Lace</strong> en la barra de extensiones del navegador (arriba a la derecha).</p>
+                        <p>→ Si no lo ves, clic en el ícono de extensiones 🧩 y buscá Lace.</p>
+                        <p>→ Aprobá la conexión dentro del popup de la extensión.</p>
+                        <p>→ Asegurate de que Lace esté desbloqueado y tenga una cuenta configurada.</p>
+                      </>
+                    ) : (
+                      <p>→ Revisá si apareció un popup de <span className="capitalize">{connecting}</span> en tu navegador y aprobá la conexión.</p>
+                    )}
+                  </div>
+                </div>
               ) : (
                 <p className="text-sm text-[var(--muted)]">
                   {availableWallets.length === 0
