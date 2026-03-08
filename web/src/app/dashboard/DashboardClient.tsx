@@ -35,6 +35,7 @@ export default function DashboardClient() {
   const [walletAddress, setWalletAddress] = useState('');
   const [walletAda, setWalletAda] = useState<number | null>(null);
   const [showWalletPicker, setShowWalletPicker] = useState(false);
+  const [connecting, setConnecting] = useState(''); // wallet name being connected
 
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [runtimeUrl, setRuntimeUrl] = useState(DEFAULT_RUNTIME);
@@ -57,17 +58,29 @@ export default function DashboardClient() {
 
   async function connect(name: string) {
     setError(null);
+    setConnecting(name);
+    setShowWalletPicker(false);
     try {
-      const w = await BrowserWallet.enable(name);
+      // Race between wallet enable and a 30-second timeout.
+      // Lace (and some other wallets) show a popup that hangs forever if ignored.
+      const w = await Promise.race([
+        BrowserWallet.enable(name),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(
+            `La wallet no respondió en 30 segundos. Revisá si apareció un popup de ${name} en tu navegador y aprobá la conexión.`
+          )), 30_000)
+        ),
+      ]);
       setWallet(w);
       setWalletName(name);
-      setShowWalletPicker(false);
       const addr = await w.getChangeAddress();
       setWalletAddress(addr);
       const lovelace = await w.getLovelace();
       setWalletAda(Math.floor(Number(lovelace) / 1_000_000));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al conectar wallet');
+    } finally {
+      setConnecting('');
     }
   }
 
@@ -166,37 +179,52 @@ export default function DashboardClient() {
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="space-y-1">
               <div className="font-mono text-xs uppercase tracking-widest text-[var(--muted)]">Sin wallet</div>
-              <p className="text-sm text-[var(--muted)]">
-                {availableWallets.length === 0
-                  ? 'No se detectaron wallets Cardano. Instalá Lace, Eternl o Nami en tu navegador.'
-                  : `${availableWallets.length} wallet${availableWallets.length > 1 ? 's' : ''} detectada${availableWallets.length > 1 ? 's' : ''}: ${availableWallets.map(w => w.name).join(', ')}`
-                }
-              </p>
+                {connecting ? (
+                <p className="text-sm text-[var(--accent)]">
+                  Esperando aprobación de <span className="capitalize font-semibold">{connecting}</span>…
+                  revisá si apareció un popup en el navegador.
+                </p>
+              ) : (
+                <p className="text-sm text-[var(--muted)]">
+                  {availableWallets.length === 0
+                    ? 'No se detectaron wallets Cardano. Instalá Lace, Eternl o Nami en tu navegador.'
+                    : `Detectadas: ${availableWallets.map(w => w.name).join(', ')}`
+                  }
+                </p>
+              )}
             </div>
             <div className="relative shrink-0">
-              <button
-                onClick={() => setShowWalletPicker(v => !v)}
-                disabled={availableWallets.length === 0}
-                className="rounded-full bg-white px-5 py-2.5 text-sm font-bold text-black transition hover:bg-[var(--accent)] disabled:opacity-40 disabled:cursor-not-allowed"
-              >
-                Conectar wallet
-              </button>
-              {showWalletPicker && availableWallets.length > 0 && (
-                <div className="absolute right-0 top-full mt-2 z-10 min-w-[160px] rounded-2xl border border-[var(--border)] bg-[#0d1f16] shadow-xl">
-                  {availableWallets.map(w => (
-                    <button
-                      key={w.name}
-                      onClick={() => connect(w.name)}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-sm text-[var(--foreground)] transition hover:bg-white/5 first:rounded-t-2xl last:rounded-b-2xl"
-                    >
-                      {w.icon && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={w.icon} alt={w.name} width={20} height={20} className="rounded-sm" />
-                      )}
-                      <span className="capitalize">{w.name}</span>
-                    </button>
-                  ))}
+              {connecting ? (
+                <div className="rounded-full border border-[var(--accent)]/40 px-5 py-2.5 text-sm text-[var(--accent)] font-mono">
+                  conectando…
                 </div>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setShowWalletPicker(v => !v)}
+                    disabled={availableWallets.length === 0}
+                    className="rounded-full bg-white px-5 py-2.5 text-sm font-bold text-black transition hover:bg-[var(--accent)] disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Conectar wallet
+                  </button>
+                  {showWalletPicker && availableWallets.length > 0 && (
+                    <div className="absolute right-0 top-full mt-2 z-10 min-w-[160px] rounded-2xl border border-[var(--border)] bg-[#0d1f16] shadow-xl">
+                      {availableWallets.map(w => (
+                        <button
+                          key={w.name}
+                          onClick={() => connect(w.name)}
+                          className="flex w-full items-center gap-3 px-4 py-3 text-sm text-[var(--foreground)] transition hover:bg-white/5 first:rounded-t-2xl last:rounded-b-2xl"
+                        >
+                          {w.icon && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={w.icon} alt={w.name} width={20} height={20} className="rounded-sm" />
+                          )}
+                          <span className="capitalize">{w.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>
