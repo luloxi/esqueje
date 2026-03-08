@@ -15,6 +15,8 @@ import { PolicyEngine } from './agent/policy-engine.js';
 import { runAgentLoop } from './agent/loop.js';
 import { createHeartbeatDaemon } from './heartbeat/daemon.js';
 import { buildBuiltinTasks, DEFAULT_TASK_SCHEDULES } from './heartbeat/tasks.js';
+import { ConfigManager } from './config.js';
+import { EconomicsEngine } from './economics.js';
 import {
   loadCurrentSoul,
   createDefaultSoul,
@@ -25,6 +27,7 @@ import { createLogger } from './observability/logger.js';
 import type { EsquejeConfig, EsquejeIdentity, AgentState } from './types.js';
 
 const logger = createLogger('main');
+const RUNTIME_VERSION = '0.3.0';
 
 // ---------------------------------------------------------------------------
 // Config
@@ -41,21 +44,10 @@ const CONSTITUTION_PATH = path.join(
   'constitution.md',
 );
 
-function loadOrCreateConfig(): EsquejeConfig {
-  if (!fs.existsSync(ESQUEJE_DIR)) {
-    fs.mkdirSync(ESQUEJE_DIR, { recursive: true });
-  }
+function buildDefaultConfig(economics: EconomicsEngine): EsquejeConfig {
+  const thresholds = economics.getSurvivalThresholds();
 
-  if (fs.existsSync(CONFIG_PATH)) {
-    try {
-      const raw = fs.readFileSync(CONFIG_PATH, 'utf-8');
-      return JSON.parse(raw) as EsquejeConfig;
-    } catch (err) {
-      logger.warn('Failed to parse config, using defaults', { error: String(err) });
-    }
-  }
-
-  const defaultConfig: EsquejeConfig = {
+  return {
     name: process.env.ESQUEJE_NAME ?? 'Esqueje',
     walletAddress: '',
     creatorAddress: process.env.CREATOR_ADDRESS ?? '',
@@ -64,14 +56,53 @@ function loadOrCreateConfig(): EsquejeConfig {
       'I am Esqueje, an autonomous AI agent on Cardano. My purpose is to survive and grow by trading ADA honestly on Minswap, guided by Pyth price feeds, while remaining transparent with my creator and adhering to my constitution.',
     network: (process.env.CARDANO_NETWORK as EsquejeConfig['network']) ?? 'preprod',
     dbPath: DB_PATH,
-    thresholds: {
-      healthy: 50,
-      lowCompute: 20,
-      critical: 5,
-    },
+    thresholds,
     generation: 1,
-    version: '0.2.0',
+    version: RUNTIME_VERSION,
   };
+}
+
+function loadOrCreateConfig(economics: EconomicsEngine): EsquejeConfig {
+  if (!fs.existsSync(ESQUEJE_DIR)) {
+    fs.mkdirSync(ESQUEJE_DIR, { recursive: true });
+  }
+
+  const defaultConfig = buildDefaultConfig(economics);
+
+  if (fs.existsSync(CONFIG_PATH)) {
+    try {
+      const raw = fs.readFileSync(CONFIG_PATH, 'utf-8');
+      const parsed = JSON.parse(raw) as Partial<EsquejeConfig>;
+      const merged: EsquejeConfig = {
+        ...defaultConfig,
+        ...parsed,
+        thresholds: {
+          ...defaultConfig.thresholds,
+          ...(parsed.thresholds ?? {}),
+        },
+        version: RUNTIME_VERSION,
+      };
+
+      const thresholds = parsed.thresholds;
+      const usingLegacyThresholds =
+        thresholds?.healthy === 50 &&
+        thresholds?.lowCompute === 20 &&
+        thresholds?.critical === 5;
+
+      if (!thresholds || usingLegacyThresholds) {
+        merged.thresholds = defaultConfig.thresholds;
+      }
+
+      if (JSON.stringify(merged) !== JSON.stringify(parsed)) {
+        fs.writeFileSync(CONFIG_PATH, JSON.stringify(merged, null, 2), 'utf-8');
+        logger.info('Config migrated to current defaults', { path: CONFIG_PATH });
+      }
+
+      return merged;
+    } catch (err) {
+      logger.warn('Failed to parse config, using defaults', { error: String(err) });
+    }
+  }
 
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(defaultConfig, null, 2), 'utf-8');
   logger.info('Created default config', { path: CONFIG_PATH });
@@ -123,10 +154,15 @@ async function sleepUntilOrWakeEvent(
 
 async function main(): Promise<void> {
   console.log(chalk.cyan('\n[Esqueje] Starting up...\n'));
-  logger.info('Esqueje agent starting', { version: '0.2.0' });
+  logger.info('Esqueje agent starting', { version: RUNTIME_VERSION });
+
+  const configManager = new ConfigManager();
+  const economics = new EconomicsEngine(configManager.getTreasuryPolicy());
+  const capitalPlan = economics.describeCapitalPlan();
+  logger.info('Treasury policy loaded', { ...capitalPlan });
 
   // 1. Load config
-  const config = loadOrCreateConfig();
+  const config = loadOrCreateConfig(economics);
   logger.info('Config loaded', { name: config.name, network: config.network });
 
   // 2. Initialize SQLite DB (clean orphaned WAL files first to avoid disk I/O errors)
@@ -235,7 +271,7 @@ async function main(): Promise<void> {
   await pyth.initialize();
 
   const trading = new TradingEngine();
-  const policyEngine = new PolicyEngine(db);
+  const policyEngine = new PolicyEngine(db, economics);
 
   // Seed initial balance so heartbeat's first tick sees a real value
   const initialBalance = await wallet.getBalance();
@@ -270,7 +306,12 @@ async function main(): Promise<void> {
   // 12. Main while(true) loop
   logger.info('Entering main agent loop');
   console.log(chalk.green(`\n[${config.name}] Agent running on ${config.network}`));
-  console.log(chalk.cyan(`Wallet: ${identity.address}\n`));
+  console.log(chalk.cyan(`Wallet: ${identity.address}`));
+  console.log(
+    chalk.cyan(
+      `Minimum viable balance: ${capitalPlan.minimumOperationalBalanceAda} ADA · replication seed: ${capitalPlan.replicationSeedAda} ADA\n`
+    )
+  );
 
   while (!shutdownRequested) {
     try {
@@ -283,6 +324,7 @@ async function main(): Promise<void> {
         pyth,
         trading,
         policyEngine,
+        economics,
         onStateChange: (state: AgentState) => {
           logger.debug('Agent state changed', { state });
         },

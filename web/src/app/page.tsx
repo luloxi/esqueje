@@ -1,100 +1,118 @@
 import Link from 'next/link';
+import { getCapitalPlan, getSurvivalThresholds, treasuryDefaults } from '@/lib/runtimeEconomics';
+
+const capitalPlan = getCapitalPlan();
+const thresholds = getSurvivalThresholds();
 
 const categories = [
   {
     eyebrow: 'Identidad',
-    title: 'Un agente con memoria y carácter',
+    title: 'Un runtime que no arranca en blanco',
     items: [
-      'SOUL.md persiste propósito, estrategia y carácter financiero.',
-      'SQLite guarda balance, trades, wake events y configuración.',
-      'El estado sobrevive a reinicios y redeploys.',
+      'SOUL.md persiste propósito, memoria y carácter financiero.',
+      'SQLite conserva balance, turns, wake events y configuración.',
+      'El agente vuelve a vivir después de reinicios y redeploys.',
     ],
   },
   {
-    eyebrow: 'Supervivencia',
-    title: 'No tradea a ciegas',
+    eyebrow: 'Tesorería',
+    title: 'Supervivencia primero, crecimiento después',
     items: [
-      'Survival tiers frenan riesgo antes de quedarse sin caja.',
-      'Policy engine limita tamaño, frecuencia y reserva mínima.',
-      'Heartbeat daemon sigue vigilando aunque el loop duerma.',
+      `Reserva ${capitalPlan.targetReserveAda} ADA para ${treasuryDefaults.targetRunwayDays} días de runway antes de hablar de replicación.`,
+      `Marca ${capitalPlan.minimumOperationalBalanceAda} ADA como mínimo sano por agente.`,
+      `Sólo propone replicarse si el padre puede quedar con caja y el hijo nace con ${capitalPlan.replicationSeedAda} ADA.`,
     ],
   },
   {
     eyebrow: 'Operación',
-    title: 'Diseñado para vivir en un servidor',
+    title: 'Pensado para humanos y para agentes ya fondeados',
     items: [
-      'Corre 24/7 en un VPS y se despierta por eventos o timers.',
-      'Lee ADA real con Blockfrost y opera sobre Cardano.',
-      'Puede montarse en infraestructura pagada con ADA.',
+      'La primera alta de hosting, wallet browser y cuentas externas sigue siendo humana.',
+      'Un agente ya fondeado puede reutilizar hosting, claves y billing del operador.',
+      'Dashboard, logs y Blockfrost cierran el loop de control y monitoreo.',
     ],
+  },
+];
+
+const launchModes = [
+  {
+    title: 'Humano, primer despliegue',
+    body: 'Crea o reutiliza el hosting, prepara la wallet, obtiene las claves y arranca la primera instancia. Si un proveedor pide email, captcha o verificación humana, ese paso no lo resuelve el agente.',
+    cta: 'Ver guía humana',
+    href: '/instalar#humano',
+  },
+  {
+    title: 'Agente ya fondeado',
+    body: 'No crea cuentas nuevas. Hereda la cuenta de su operador o de su padre, usa SSH/API ya aprobadas y sólo nace si recibe capital suficiente para cubrir runway, operación y margen.',
+    cta: 'Ver guía para agentes',
+    href: '/instalar#agente',
   },
 ];
 
 const highlights = [
   {
-    title: 'Soberanía',
-    body: 'No depende de una sesión humana abierta. Guarda estado y vuelve a arrancar solo.',
+    title: 'Mínimo por agente',
+    body: `${capitalPlan.minimumOperationalBalanceAda} ADA. Menos que eso puede mantenerlo vivo un rato, pero no lo vuelve sostenible ni replicable.`,
   },
   {
-    title: 'Disciplina',
-    body: 'La prioridad no es operar más, sino durar más. La política manda sobre la emoción del mercado.',
+    title: 'Replicación responsable',
+    body: `El padre debería llegar a ${capitalPlan.recommendedParentBalanceAda} ADA para sostenerse y fondear un hijo de ${capitalPlan.replicationSeedAda} ADA.`,
   },
   {
-    title: 'Despliegue',
-    body: 'La guía propone un flujo simple: VPS, wallet operativa y fondeo desde Lace o cualquier wallet Cardano.',
+    title: 'Coste operativo base',
+    body: `${capitalPlan.monthlyBurnAda} ADA/mes entre hosting y operación. El runtime usa ese burn para decidir reservas y riesgo.`,
   },
 ];
 
 export default function Home() {
   return (
     <main className="min-h-screen">
-      {/* Hero */}
       <section className="mx-auto max-w-6xl px-4 pt-6 pb-16 md:px-6">
         <div className="grid items-center gap-10 md:grid-cols-[1.3fr_0.9fr]">
           <div className="space-y-8">
             <div className="inline-flex rounded-full border border-[var(--border)] px-4 py-2 font-mono text-xs uppercase tracking-[0.3em] text-[var(--accent-2)]">
-              Cardano · ADA · Autónomo · Open source
+              Cardano · ADA · Autónomo · Con tesorería real
             </div>
             <div className="space-y-5">
               <h1 className="text-5xl font-bold leading-[1.05] md:text-7xl">
-                El agente que paga su existencia<br />
-                <span className="text-[var(--accent)]">en ADA.</span>
+                Un agente que no sólo vive:<br />
+                <span className="text-[var(--accent)]">también debe cerrar sus cuentas.</span>
               </h1>
               <p className="max-w-2xl text-lg leading-8 text-[var(--muted)] md:text-xl">
-                Esqueje es un runtime autónomo sobre Cardano con soul persistente, heartbeat
-                daemon, policy engine y survival tiers. Corre, tradea y sobrevive sin que lo estés mirando.
+                Esqueje es un runtime autónomo sobre Cardano con soul persistente,
+                heartbeat daemon, policy engine y tesorería explícita. Se puede lanzar
+                fácil, pero no finge que un agente subcapitalizado sea un negocio sano.
               </p>
             </div>
             <div className="flex flex-wrap gap-4">
               <Link
                 href="/instalar"
-                className="rounded-full bg-white px-7 py-3 font-bold text-black transition hover:-translate-y-px hover:bg-[var(--accent)]"
+                className="rounded-full bg-[var(--foreground)] px-7 py-3 font-bold text-[var(--background)] transition hover:-translate-y-px hover:bg-[var(--accent)]"
               >
-                Instalar el agente
+                Lanzar por primera vez
               </Link>
               <Link
-                href="/caracteristicas"
+                href="/dashboard"
                 className="rounded-full border border-[var(--border)] px-7 py-3 font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
               >
-                Ver características
+                Conectar y monitorear
               </Link>
             </div>
           </div>
 
-          {/* Status card */}
           <div className="panel-strong rounded-[2rem] p-6">
             <div className="mb-5 flex items-center justify-between font-mono text-xs uppercase tracking-[0.3em] text-[var(--muted)]">
-              <span>Estado del agente</span>
-              <span className="text-[var(--accent)]">● healthy</span>
+              <span>Capital mínimo</span>
+              <span className="text-[var(--accent)]">● viable</span>
             </div>
             <div className="space-y-3 font-mono text-sm">
               {[
-                ['balance', '124.38 ADA'],
-                ['tier', 'healthy'],
-                ['turno', '#42'],
-                ['último precio', '$0.4955 ADA/USD'],
-                ['señal', 'buy (MA5 > MA10)'],
-                ['duerme hasta', '01:14:33 UTC'],
+                ['burn mensual', `${capitalPlan.monthlyBurnAda} ADA`],
+                ['reserva 90 días', `${capitalPlan.targetReserveAda} ADA`],
+                ['capital de trading', `${capitalPlan.requiredTradingCapitalAda} ADA`],
+                ['mínimo por agente', `${capitalPlan.minimumOperationalBalanceAda} ADA`],
+                ['seed para hijo', `${capitalPlan.replicationSeedAda} ADA`],
+                ['padre para replicar', `${capitalPlan.recommendedParentBalanceAda} ADA`],
               ].map(([key, val]) => (
                 <div key={key} className="flex justify-between border-b border-white/5 pb-2">
                   <span className="text-[var(--muted)]">{key}</span>
@@ -103,42 +121,40 @@ export default function Home() {
               ))}
             </div>
             <p className="mt-4 text-xs text-[var(--muted)]">
-              Datos ilustrativos — conecta Blockfrost para valores reales.
+              Datos ilustrativos, sincronizados con los defaults del runtime actual.
             </p>
           </div>
         </div>
       </section>
 
-      {/* Loop */}
       <section className="mx-auto max-w-6xl px-4 py-4 md:px-6">
         <div className="panel-strong rounded-[2rem] p-8">
           <div className="mb-6 font-mono text-xs uppercase tracking-[0.3em] text-[var(--accent)]">
-            Ciclo de supervivencia
+            Dos formas de lanzarlo
           </div>
-          <div className="grid gap-4 md:grid-cols-5">
-            {[
-              ['Think', 'Evalúa balance, tier y mercado'],
-              ['Budget', 'Separa reserva de capital de riesgo'],
-              ['Earn', 'Busca señal en Pyth, evalúa política'],
-              ['Pay', 'Paga hosting sólo si el runway aguanta'],
-              ['Sleep', 'Duerme hasta el próximo ciclo; el heartbeat sigue'],
-            ].map(([step, desc]) => (
-              <div key={step} className="rounded-2xl border border-[var(--border)] px-4 py-5 text-center">
-                <div className="mb-1 text-xl font-bold text-[var(--accent-2)]">{step}</div>
-                <p className="text-xs leading-5 text-[var(--muted)]">{desc}</p>
-              </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            {launchModes.map((mode) => (
+              <article key={mode.title} className="rounded-[1.5rem] border border-[var(--border)] bg-black/10 p-6">
+                <h2 className="mb-3 text-2xl font-bold">{mode.title}</h2>
+                <p className="mb-5 text-sm leading-6 text-[var(--muted)]">{mode.body}</p>
+                <Link
+                  href={mode.href}
+                  className="inline-flex rounded-full border border-[var(--border)] px-5 py-2.5 text-sm font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                >
+                  {mode.cta}
+                </Link>
+              </article>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Feature categories */}
       <section className="mx-auto max-w-6xl px-4 py-10 md:px-6">
         <div className="mb-8">
           <div className="mb-2 font-mono text-xs uppercase tracking-[0.3em] text-[var(--accent)]">
             Por qué importa
           </div>
-          <h2 className="text-3xl font-bold md:text-4xl">Características vendidas por categoría</h2>
+          <h2 className="text-3xl font-bold md:text-4xl">Arquitectura, pero con presupuesto</h2>
         </div>
         <div className="grid gap-5 md:grid-cols-3">
           {categories.map((category) => (
@@ -171,53 +187,93 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Survival tiers */}
+      <section className="mx-auto max-w-6xl px-4 py-4 md:px-6">
+        <div className="panel-strong rounded-[2rem] p-8">
+          <div className="mb-6 font-mono text-xs uppercase tracking-[0.3em] text-[var(--accent)]">
+            Ciclo de supervivencia
+          </div>
+          <div className="grid gap-4 md:grid-cols-5">
+            {[
+              ['Think', 'Lee balance, tier y mercado'],
+              ['Budget', 'Separa reserva, burn y capital de riesgo'],
+              ['Earn', 'Busca señal y limita tamaño'],
+              ['Replicate', 'Sólo si el padre puede sostener al hijo sin suicidarse'],
+              ['Sleep', 'Duerme; el heartbeat sigue'],
+            ].map(([step, desc]) => (
+              <div key={step} className="rounded-2xl border border-[var(--border)] px-4 py-5 text-center">
+                <div className="mb-1 text-xl font-bold text-[var(--accent-2)]">{step}</div>
+                <p className="text-xs leading-5 text-[var(--muted)]">{desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       <section className="mx-auto max-w-6xl px-4 py-4 md:px-6">
         <div className="grid gap-4 md:grid-cols-4">
           {[
-            { tier: 'Healthy', range: '> 50 ADA', color: 'text-[var(--accent)]', desc: 'Trading normal con tamaño de posición completo.' },
-            { tier: 'Low Compute', range: '20–50 ADA', color: 'text-[var(--accent-2)]', desc: 'Trades conservadores al 50%, alerta al creador.' },
-            { tier: 'Critical', range: '5–20 ADA', color: 'text-orange-400', desc: 'Sin trades. Modo defensa. Aviso urgente.' },
-            { tier: 'Dead', range: '< 5 ADA', desc: 'Dormido. Espera fondos. Heartbeat sigue activo.', color: 'text-red-400' },
-          ].map((t) => (
-            <div key={t.tier} className="panel rounded-[1.5rem] p-5">
-              <div className={`mb-1 font-mono text-xs uppercase tracking-[0.25em] ${t.color}`}>{t.tier}</div>
-              <div className="mb-2 text-2xl font-bold">{t.range}</div>
-              <p className="text-sm leading-6 text-[var(--muted)]">{t.desc}</p>
+            {
+              tier: 'Healthy',
+              range: `>= ${thresholds.healthy} ADA`,
+              color: 'text-[var(--accent)]',
+              desc: 'Runway suficiente para seguir operando sin pedir auxilio.',
+            },
+            {
+              tier: 'Low Compute',
+              range: `${thresholds.critical}-${thresholds.healthy - 1} ADA`,
+              color: 'text-[var(--accent-2)]',
+              desc: 'Reduce riesgo y conserva caja; sigue vivo pero ya no está cómodo.',
+            },
+            {
+              tier: 'Critical',
+              range: `1-${thresholds.critical - 1} ADA`,
+              color: 'text-orange-400',
+              desc: 'Sin margen real. Defensa pura y avisos urgentes.',
+            },
+            {
+              tier: 'Dead',
+              range: '0 ADA',
+              desc: 'Dormido. Espera fondos o intervención externa.',
+              color: 'text-red-400',
+            },
+          ].map((tier) => (
+            <div key={tier.tier} className="panel rounded-[1.5rem] p-5">
+              <div className={`mb-1 font-mono text-xs uppercase tracking-[0.25em] ${tier.color}`}>{tier.tier}</div>
+              <div className="mb-2 text-2xl font-bold">{tier.range}</div>
+              <p className="text-sm leading-6 text-[var(--muted)]">{tier.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
-      {/* CTAs */}
-      <section className="mx-auto max-w-6xl px-4 py-14 md:px-6 space-y-4">
+      <section className="mx-auto max-w-6xl space-y-4 px-4 py-14 md:px-6">
         <div className="panel-strong flex flex-col items-start justify-between gap-6 rounded-[2rem] p-8 md:flex-row md:items-center">
           <div>
-            <h2 className="text-3xl font-bold">Gestioná el presupuesto de tus agentes</h2>
+            <h2 className="text-3xl font-bold">Conectá tu wallet y registrá cada agente</h2>
             <p className="mt-2 max-w-xl text-[var(--muted)]">
-              Conectá tu wallet y asigná ADA a cada instancia de Esqueje a través de un contrato Marlowe on-chain.
-              Los fondos que el agente no use vuelven a tu wallet al vencer el período.
+              El dashboard ahora explica cómo conectar la wallet del humano, cómo cargar la dirección
+              on-chain del agente y cómo usar un vault para fondeo, control y monitoreo.
             </p>
           </div>
           <Link
             href="/dashboard"
-            className="shrink-0 rounded-full bg-white px-7 py-3 font-bold text-black transition hover:-translate-y-px hover:bg-[var(--accent)]"
+            className="shrink-0 rounded-full bg-[var(--foreground)] px-7 py-3 font-bold text-[var(--background)] transition hover:-translate-y-px hover:bg-[var(--accent)]"
           >
-            Ir al Dashboard →
+            Ir al Dashboard
           </Link>
         </div>
         <div className="flex flex-col items-start justify-between gap-6 rounded-[2rem] border border-[var(--border)] bg-black/10 p-8 md:flex-row md:items-center">
           <div>
             <h2 className="text-xl font-bold">Guía de instalación</h2>
             <p className="mt-1 max-w-xl text-sm text-[var(--muted)]">
-              Protocolo paso a paso para desplegar en un VPS pagado con ADA.
+              Separada entre humano inicial y agente ya fondeado, con mínimos, cuenta reutilizable y pasos reales.
             </p>
           </div>
           <Link
             href="/instalar"
             className="shrink-0 rounded-full border border-[var(--border)] px-6 py-2.5 text-sm font-semibold text-white transition hover:border-[var(--accent)]"
           >
-            Ver guía →
+            Ver guía
           </Link>
         </div>
       </section>

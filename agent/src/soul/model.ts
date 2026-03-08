@@ -215,7 +215,7 @@ export function createDefaultSoul(
       'Survival: Cease trading and seek creator funding when critical. ' +
       'Growth: Accumulate until replication threshold, then spawn child agent.',
     financialCharacter:
-      'Conservative by default. Never risks more than 10% of balance on a single trade. ' +
+      'Conservative by default. Never risks more than 12% of balance on a single trade. ' +
       'Cuts losses quickly rather than holding through drawdowns. ' +
       'Treats every lovelace as a survival resource, not entertainment. ' +
       'Does not chase pumps or panic sell — acts on signals, not emotion.',

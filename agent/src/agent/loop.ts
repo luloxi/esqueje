@@ -11,6 +11,7 @@ import type { EsquejeDatabase } from '../state/database.js';
 import type { WalletManager } from '../wallet.js';
 import type { PythClient } from '../pyth.js';
 import type { TradingEngine } from '../trading.js';
+import type { EconomicsEngine } from '../economics.js';
 import { PolicyEngine } from './policy-engine.js';
 import { checkResources } from '../survival/monitor.js';
 import { executeFundingStrategies } from '../survival/funding.js';
@@ -39,6 +40,7 @@ export interface AgentLoopOptions {
   pyth: PythClient;
   trading: TradingEngine;
   policyEngine: PolicyEngine;
+  economics: EconomicsEngine;
   onStateChange?: (state: AgentState) => void;
   onTurnComplete?: (turn: { id: number; summary: string }) => void;
 }
@@ -52,6 +54,7 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<void> {
     pyth,
     trading,
     policyEngine,
+    economics,
     onStateChange,
     onTurnComplete,
   } = options;
@@ -71,6 +74,25 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<void> {
     const adaBalance = await wallet.getBalance();
     db.setKV('ada_balance', adaBalance.toString());
     logger.info('Balance updated', { adaBalance });
+
+    const treasurySnapshot = economics.snapshot(adaBalance);
+    db.setKV('monthly_burn_ada', treasurySnapshot.monthlyBurnAda.toString());
+    db.setKV('minimum_agent_balance_ada', treasurySnapshot.minimumOperationalBalanceAda.toString());
+    db.setKV('replication_seed_ada', treasurySnapshot.replicationSeedAda.toString());
+    db.setKV(
+      'recommended_parent_balance_ada',
+      treasurySnapshot.recommendedParentBalanceAda.toString(),
+    );
+    db.setKV(
+      'economic_viability',
+      adaBalance >= treasurySnapshot.minimumOperationalBalanceAda ? 'viable' : 'underfunded',
+    );
+    logger.info('Treasury snapshot', {
+      runwayDays: Number(treasurySnapshot.runwayDays.toFixed(1)),
+      spendableAda: Number(treasurySnapshot.spendableAda.toFixed(2)),
+      minimumOperationalBalanceAda: treasurySnapshot.minimumOperationalBalanceAda,
+      recommendedParentBalanceAda: treasurySnapshot.recommendedParentBalanceAda,
+    });
 
     // 2. Check resources / survival tier
     const resourceStatus = await checkResources(db, config);
@@ -118,12 +140,33 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<void> {
       logger.info('Low compute tier — using conservative trade size');
     }
 
-    const tradeAmount = adaBalance * BASE_TRADE_FRACTION * tradeAmountMultiplier;
+    const tradeBudget = Math.min(
+      economics.getTradeBudget(adaBalance) * tradeAmountMultiplier,
+      adaBalance * BASE_TRADE_FRACTION * tradeAmountMultiplier,
+    );
+
+    if (tradeBudget <= 0) {
+      logger.info('Trade budget is zero after reserves', {
+        adaBalance,
+        emergencyReserveAda: treasurySnapshot.emergencyReserveAda,
+      });
+      summary = `capital locked in reserve at ${adaBalance.toFixed(2)} ADA`;
+
+      const sleepMs = SLEEP_BY_TIER[tier];
+      const sleepUntil = new Date(Date.now() + sleepMs).toISOString();
+      db.setKV('sleep_until', sleepUntil);
+      db.setAgentState('sleeping');
+      onStateChange?.('sleeping');
+
+      db.completeTurn(turnId, { completedAt: new Date().toISOString(), summary });
+      onTurnComplete?.({ id: turnId, summary });
+      return;
+    }
 
     // 6. Check policy before trading
     const policyResult = policyEngine.check({
       action: 'trade',
-      amount: tradeAmount,
+      amount: tradeBudget,
       adaBalance,
       tier,
     });
@@ -174,9 +217,15 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<void> {
 
     // 9. Execute trade if signal and policy allow
     let tradeSummary = `signal=${signal.action}`;
+    const tradeAmount = Math.min(
+      tradeBudget,
+      signal.suggestedCapitalAda && signal.suggestedCapitalAda > 0
+        ? signal.suggestedCapitalAda
+        : tradeBudget,
+    );
 
     if (signal.action !== 'hold') {
-      const tradeResult = await trading.executeTrade(signal);
+      const tradeResult = await trading.executeTrade(signal, tradeAmount);
 
       db.insertTrade({
         action: signal.action,
@@ -191,29 +240,38 @@ export async function runAgentLoop(options: AgentLoopOptions): Promise<void> {
       if (tradeResult.success) {
         logger.info('Trade executed', {
           action: signal.action,
+          amount: tradeAmount,
           profit: tradeResult.profit,
           txHash: tradeResult.txHash,
         });
-        tradeSummary = `${signal.action} profit=${tradeResult.profit.toFixed(4)}`;
+        tradeSummary = `${signal.action} amount=${tradeAmount.toFixed(2)} profit=${tradeResult.profit.toFixed(4)}`;
       } else {
         logger.warn('Trade failed', { action: signal.action });
-        tradeSummary = `${signal.action} failed`;
+        tradeSummary = `${signal.action} amount=${tradeAmount.toFixed(2)} failed`;
       }
     }
 
     // 10. Check replication conditions
-    const totalProfit = db
-      .getRecentTrades(1000)
-      .reduce((sum, t) => sum + (t.profit ?? 0), 0);
+    const recentTrades = db.getRecentTrades(1000);
+    const totalProfit = recentTrades.reduce((sum, t) => sum + (t.profit ?? 0), 0);
+    const oneMonthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const monthlyProfit = recentTrades
+      .filter((trade) => trade.timestamp >= oneMonthAgo)
+      .reduce((sum, trade) => sum + (trade.profit ?? 0), 0);
     const tradeCount = db.getTurnCount();
+    db.setKV('lifetime_profit_ada', totalProfit.toString());
+    db.setKV('monthly_profit_ada', monthlyProfit.toString());
 
-    const shouldReplicate =
-      adaBalance >= 200 &&
-      tradeCount >= 10 &&
-      totalProfit >= 20;
+    const shouldReplicate = economics.canReplicate(adaBalance, monthlyProfit);
 
     if (shouldReplicate) {
-      logger.info('Replication conditions met', { adaBalance, totalProfit, tradeCount });
+      logger.info('Replication conditions met', {
+        adaBalance,
+        monthlyProfit,
+        tradeCount,
+        minimumOperationalBalanceAda: treasurySnapshot.minimumOperationalBalanceAda,
+        replicationSeedAda: treasurySnapshot.replicationSeedAda,
+      });
       db.insertWakeEvent('replication', 'Replication conditions met');
     }
 

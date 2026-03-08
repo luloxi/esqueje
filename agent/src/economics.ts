@@ -1,17 +1,26 @@
 export interface TreasuryPolicy {
   monthlyHostingAda: number;
+  monthlyOperationsAda: number;
+  targetMonthlyProfitAda: number;
   emergencyRunwayDays: number;
   targetRunwayDays: number;
+  assumedMonthlyNetReturnPct: number;
+  minimumAgentBalanceAda: number;
+  replicationSeedAda: number;
+  minimumProfitForReplicationAda: number;
   maxTradeAllocationPct: number;
-  maxReplicationAllocationPct: number;
 }
 
 export interface TreasurySnapshot {
   balanceAda: number;
-  reserveAda: number;
+  emergencyReserveAda: number;
+  targetReserveAda: number;
   spendableAda: number;
   runwayDays: number;
-  monthlyHostingAda: number;
+  monthlyBurnAda: number;
+  minimumOperationalBalanceAda: number;
+  replicationSeedAda: number;
+  recommendedParentBalanceAda: number;
 }
 
 export interface HostingDecision {
@@ -20,12 +29,27 @@ export interface HostingDecision {
   reason: string;
 }
 
+export interface CapitalPlan {
+  monthlyBurnAda: number;
+  emergencyReserveAda: number;
+  targetReserveAda: number;
+  requiredTradingCapitalAda: number;
+  minimumOperationalBalanceAda: number;
+  replicationSeedAda: number;
+  recommendedParentBalanceAda: number;
+}
+
 const DEFAULT_POLICY: TreasuryPolicy = {
-  monthlyHostingAda: 15,
+  monthlyHostingAda: 25,
+  monthlyOperationsAda: 5,
+  targetMonthlyProfitAda: 15,
   emergencyRunwayDays: 30,
   targetRunwayDays: 90,
-  maxTradeAllocationPct: 0.18,
-  maxReplicationAllocationPct: 0.3,
+  assumedMonthlyNetReturnPct: 0.12,
+  minimumAgentBalanceAda: 500,
+  replicationSeedAda: 500,
+  minimumProfitForReplicationAda: 90,
+  maxTradeAllocationPct: 0.12,
 };
 
 export class EconomicsEngine {
@@ -35,27 +59,70 @@ export class EconomicsEngine {
     return { ...this.policy };
   }
 
+  describeCapitalPlan(): CapitalPlan {
+    const assumedMonthlyNetReturnPct = Math.max(this.policy.assumedMonthlyNetReturnPct, 0.0001);
+    const monthlyBurnAda = this.getMonthlyBurnAda();
+    const emergencyReserveAda = this.calculateReserve(this.policy.emergencyRunwayDays);
+    const targetReserveAda = this.calculateReserve(this.policy.targetRunwayDays);
+    const requiredTradingCapitalAda = Math.ceil(
+      (monthlyBurnAda + this.policy.targetMonthlyProfitAda) /
+      assumedMonthlyNetReturnPct
+    );
+    const minimumOperationalBalanceAda = Math.max(
+      this.policy.minimumAgentBalanceAda,
+      Math.ceil(targetReserveAda + requiredTradingCapitalAda),
+    );
+    const replicationSeedAda = Math.max(
+      this.policy.replicationSeedAda,
+      minimumOperationalBalanceAda,
+    );
+
+    return {
+      monthlyBurnAda,
+      emergencyReserveAda,
+      targetReserveAda,
+      requiredTradingCapitalAda,
+      minimumOperationalBalanceAda,
+      replicationSeedAda,
+      recommendedParentBalanceAda: minimumOperationalBalanceAda + replicationSeedAda,
+    };
+  }
+
+  getSurvivalThresholds(): { healthy: number; lowCompute: number; critical: number } {
+    const plan = this.describeCapitalPlan();
+
+    return {
+      healthy: Math.ceil(plan.targetReserveAda),
+      lowCompute: Math.ceil(plan.emergencyReserveAda * 2),
+      critical: Math.ceil(plan.emergencyReserveAda),
+    };
+  }
+
   snapshot(balanceAda: number): TreasurySnapshot {
-    const reserveAda = this.calculateReserve(balanceAda);
-    const spendableAda = Math.max(0, balanceAda - reserveAda);
+    const plan = this.describeCapitalPlan();
+    const spendableAda = Math.max(0, balanceAda - plan.emergencyReserveAda);
     const runwayDays =
-      this.policy.monthlyHostingAda <= 0
+      plan.monthlyBurnAda <= 0
         ? Number.POSITIVE_INFINITY
-        : (balanceAda / this.policy.monthlyHostingAda) * 30;
+        : (balanceAda / plan.monthlyBurnAda) * 30;
 
     return {
       balanceAda,
-      reserveAda,
+      emergencyReserveAda: plan.emergencyReserveAda,
+      targetReserveAda: plan.targetReserveAda,
       spendableAda,
       runwayDays,
-      monthlyHostingAda: this.policy.monthlyHostingAda,
+      monthlyBurnAda: plan.monthlyBurnAda,
+      minimumOperationalBalanceAda: plan.minimumOperationalBalanceAda,
+      replicationSeedAda: plan.replicationSeedAda,
+      recommendedParentBalanceAda: plan.recommendedParentBalanceAda,
     };
   }
 
   decideHostingPayment(balanceAda: number): HostingDecision {
-    const snapshot = this.snapshot(balanceAda);
+    const current = this.snapshot(balanceAda);
 
-    if (snapshot.balanceAda < this.policy.monthlyHostingAda) {
+    if (current.balanceAda < this.policy.monthlyHostingAda) {
       return {
         shouldPay: false,
         amountAda: 0,
@@ -63,7 +130,17 @@ export class EconomicsEngine {
       };
     }
 
-    if (snapshot.runwayDays < this.policy.emergencyRunwayDays) {
+    const afterPayment = this.snapshot(balanceAda - this.policy.monthlyHostingAda);
+
+    if (afterPayment.balanceAda < afterPayment.emergencyReserveAda) {
+      return {
+        shouldPay: false,
+        amountAda: 0,
+        reason: 'Pagar hosting dejaría al agente por debajo de la reserva de emergencia',
+      };
+    }
+
+    if (afterPayment.runwayDays < this.policy.emergencyRunwayDays) {
       return {
         shouldPay: false,
         amountAda: 0,
@@ -78,14 +155,14 @@ export class EconomicsEngine {
     };
   }
 
-  canReplicate(balanceAda: number, totalProfitAda: number): boolean {
+  canReplicate(balanceAda: number, monthlyProfitAda: number): boolean {
+    const plan = this.describeCapitalPlan();
     const snapshot = this.snapshot(balanceAda);
-    const replicationBankroll = balanceAda * this.policy.maxReplicationAllocationPct;
 
     return (
       snapshot.runwayDays >= this.policy.targetRunwayDays &&
-      snapshot.spendableAda >= replicationBankroll &&
-      totalProfitAda >= this.policy.monthlyHostingAda * 2
+      snapshot.balanceAda >= plan.recommendedParentBalanceAda &&
+      monthlyProfitAda >= this.policy.minimumProfitForReplicationAda
     );
   }
 
@@ -94,10 +171,11 @@ export class EconomicsEngine {
     return snapshot.spendableAda * this.policy.maxTradeAllocationPct;
   }
 
-  private calculateReserve(balanceAda: number): number {
-    const reserveFromRunway =
-      (this.policy.monthlyHostingAda / 30) * this.policy.targetRunwayDays;
+  private getMonthlyBurnAda(): number {
+    return this.policy.monthlyHostingAda + this.policy.monthlyOperationsAda;
+  }
 
-    return Math.min(balanceAda, reserveFromRunway);
+  private calculateReserve(runwayDays: number): number {
+    return (this.getMonthlyBurnAda() / 30) * runwayDays;
   }
 }

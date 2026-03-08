@@ -50,11 +50,11 @@ export default function ArquitecturaSoberana() {
 
         <section className="panel-strong mb-10 rounded-[2rem] p-8">
           <pre className="overflow-x-auto font-mono text-sm leading-7 text-[var(--foreground)]">
-{`THINK  -> evaluar estado, mercado y costos fijos
-BUDGET -> separar reserva de hosting y presupuesto de riesgo
-EARN   -> elegir oportunidad con mejor retorno ajustado por supervivencia
-PAY    -> cubrir hosting sólo si el runway sigue sano
-REPEAT -> registrar estado, aprender y endurecer política`}
+{`THINK      -> evaluar estado, mercado y costos fijos
+BUDGET     -> separar reserva, burn y capital de riesgo
+EARN       -> elegir oportunidad con mejor retorno ajustado por supervivencia
+REPLICATE? -> sólo abrir un hijo si el padre conserva caja sana
+REPEAT     -> registrar estado, aprender y endurecer política`}
           </pre>
         </section>
 

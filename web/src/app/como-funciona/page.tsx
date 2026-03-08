@@ -1,169 +1,89 @@
 import Link from 'next/link';
+import { getCapitalPlan, getSurvivalThresholds } from '@/lib/runtimeEconomics';
+
+const capitalPlan = getCapitalPlan();
+const thresholds = getSurvivalThresholds();
 
 export default function ComoFunciona() {
   return (
-    <div className="min-h-screen bg-white">
-      <div className="max-w-4xl mx-auto px-4 py-12">
-        <Link href="/" className="text-green-600 hover:text-green-700 mb-6 inline-block">
-          ← Volver al inicio
+    <main className="min-h-screen">
+      <section className="mx-auto max-w-4xl px-4 py-10 md:px-6">
+        <Link
+          href="/"
+          className="mb-8 inline-flex rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--muted)] transition hover:text-white"
+        >
+          ← Volver
         </Link>
 
-        <h1 className="text-4xl font-bold text-gray-800 mb-8">Cómo funciona Esqueje</h1>
-
-        {/* Concepto */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-bold text-green-700 mb-4">🌱 Concepto</h2>
-          <p className="text-gray-600 mb-4">
-            Esqueje es un agente de inteligencia artificial que corre en la nube
-            y opera de forma completamente autónoma en la blockchain de Cardano.
+        <div className="mb-10 space-y-4">
+          <div className="font-mono text-xs uppercase tracking-[0.3em] text-[var(--accent)]">
+            Cómo funciona
+          </div>
+          <h1 className="text-4xl font-bold md:text-5xl">El loop económico del agente</h1>
+          <p className="max-w-3xl text-lg leading-8 text-[var(--muted)]">
+            Esqueje no decide sólo por señal de mercado. Primero mira caja, runway y reservas;
+            después decide cuánto arriesgar; y recién al final evalúa si tiene sentido crecer.
           </p>
-          <p className="text-gray-600">
-            Su objetivo es simple: generar suficientes ingresos mediante trading
-            para pagar su propio hosting y, eventualmente, replicarse creando
-            nuevos agentes (esquejes) con capital propio.
-          </p>
-        </section>
+        </div>
 
-        {/* Ciclo de vida */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-bold text-green-700 mb-4">🔄 Ciclo de Vida</h2>
-          
-          <div className="space-y-6">
+        <div className="panel-strong rounded-[2rem] p-8">
+          <div className="grid gap-4 md:grid-cols-5">
             {[
-              {
-                step: '1',
-                title: 'Nacimiento',
-                desc: 'Se crea una wallet de Cardano y se fondea con capital inicial.',
-              },
-              {
-                step: '2',
-                title: 'Operación',
-                desc: 'El agente consulta precios de Pyth cada 5 minutos y ejecuta trades en Minswap.',
-              },
-              {
-                step: '3',
-                title: 'Supervivencia',
-                desc: 'Monitorea su balance. Si baja de cierto umbral, entra en modo conservación.',
-              },
-              {
-                step: '4',
-                title: 'Replicación',
-                desc: 'Si acumula profits suficientes, crea un nuevo esqueje con su propia wallet.',
-              },
-            ].map((item) => (
-              <div key={item.step} className="flex gap-4">
-                <div className="w-10 h-10 bg-green-600 text-white rounded-full flex items-center justify-center font-bold shrink-0">
-                  {item.step}
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-800">{item.title}</h3>
-                  <p className="text-gray-600">{item.desc}</p>
-                </div>
+              ['Think', 'Lee balance, tier y precios'],
+              ['Budget', 'Separa reserva y burn'],
+              ['Earn', 'Evalúa señal y riesgo'],
+              ['Replicate?', 'Sólo si hay caja real'],
+              ['Sleep', 'Heartbeat queda activo'],
+            ].map(([title, body]) => (
+              <div key={title as string} className="rounded-2xl border border-[var(--border)] px-4 py-5 text-center">
+                <div className="mb-1 text-xl font-bold text-[var(--accent-2)]">{title}</div>
+                <p className="text-xs leading-5 text-[var(--muted)]">{body}</p>
               </div>
             ))}
           </div>
-        </section>
+        </div>
 
-        {/* Estados */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-bold text-green-700 mb-4">📊 Estados del Agente</h2>
-          
-          <div className="grid md:grid-cols-2 gap-4">
-            {[
-              { status: 'Healthy', color: 'bg-green-100 text-green-700', desc: 'Balance > 50 ADA. Operación normal.' },
-              { status: 'Low', color: 'bg-yellow-100 text-yellow-700', desc: 'Balance 20-50 ADA. Reduce frecuencia.' },
-              { status: 'Critical', color: 'bg-red-100 text-red-700', desc: 'Balance 5-20 ADA. Modo supervivencia.' },
-              { status: 'Dead', color: 'bg-gray-100 text-gray-700', desc: 'Balance = 0. Agente detenido.' },
-            ].map((item) => (
-              <div key={item.status} className={`p-4 rounded-lg ${item.color}`}>
-                <div className="font-bold">{item.status}</div>
-                <div className="text-sm">{item.desc}</div>
-              </div>
-            ))}
-          </div>
-        </section>
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
+          {[
+            ['Burn mensual', `${capitalPlan.monthlyBurnAda} ADA`],
+            ['Mínimo sano', `${capitalPlan.minimumOperationalBalanceAda} ADA`],
+            ['Seed por hijo', `${capitalPlan.replicationSeedAda} ADA`],
+          ].map(([title, value]) => (
+            <div key={title as string} className="panel rounded-[1.5rem] p-5">
+              <div className="mb-2 font-mono text-xs uppercase tracking-[0.25em] text-[var(--accent)]">{title}</div>
+              <div className="text-2xl font-bold">{value}</div>
+            </div>
+          ))}
+        </div>
 
-        {/* Arquitectura */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-bold text-green-700 mb-4">🏗️ Arquitectura</h2>
-          
-          <div className="bg-gray-50 p-6 rounded-lg">
-            <pre className="text-sm text-gray-700 overflow-x-auto">
-{`┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Esqueje   │────▶│  Pyth Oracle│◀────│  Mercados   │
-│   (Agente)  │     │  (Precios)  │     │  (Crypto)   │
-└──────┬──────┘     └─────────────┘     └─────────────┘
-       │
-       ▼
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Minswap    │────▶│  Cardano    │◀────│   Hosting   │
-│   (DEX)     │     │  (Blockchain)│     │   (Cloud)   │
-└─────────────┘     └─────────────┘     └─────────────┘`}
-            </pre>
-          </div>
-        </section>
+        <div className="mt-8 grid gap-4 md:grid-cols-2">
+          {[
+            ['Healthy', `>= ${thresholds.healthy} ADA. Sigue operando con runway sano.`],
+            ['Low compute', `${thresholds.critical}-${thresholds.healthy - 1} ADA. Conserva caja y reduce agresividad.`],
+            ['Critical', `1-${thresholds.critical - 1} ADA. No debería arriesgar más capital.`],
+            ['Dead', '0 ADA. Queda dormido hasta recibir fondos.'],
+          ].map(([title, body]) => (
+            <div key={title as string} className="rounded-[1.5rem] border border-[var(--border)] bg-black/10 p-6">
+              <h2 className="mb-2 text-xl font-semibold">{title}</h2>
+              <p className="text-sm leading-6 text-[var(--muted)]">{body}</p>
+            </div>
+          ))}
+        </div>
 
-        {/* Pago de Hosting */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-bold text-green-700 mb-4">💳 Pago de Hosting con ADA</h2>
-          
-          <p className="text-gray-600 mb-4">
-            Esqueje puede pagar su propio hosting usando Cardano (ADA) de varias formas:
+        <div className="mt-8 rounded-[1.5rem] border border-[var(--border)] bg-black/15 p-6">
+          <p className="text-sm leading-7 text-[var(--muted)]">
+            Si querés el detalle operativo, seguí la guía de{' '}
+            <Link href="/instalar" className="text-[var(--accent-2)] hover:underline">
+              instalación
+            </Link>
+            . Si querés controlar presupuesto y registrar agentes, andá al{' '}
+            <Link href="/dashboard" className="text-[var(--accent-2)] hover:underline">
+              dashboard
+            </Link>
+            .
           </p>
-          
-          <div className="grid md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-green-50 p-4 rounded-lg">
-              <div className="font-bold text-green-800 mb-2">🏆 Opción A: VPS Nativo</div>
-              <p className="text-sm text-gray-700">
-                ExtraVM, Cherry Servers y otros aceptan ADA directamente.
-                El agente transfiere ADA a la dirección del proveedor.
-              </p>
-            </div>
-            
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <div className="font-bold text-blue-800 mb-2">🔄 Opción B: Swap a Stablecoins</div>
-              <p className="text-sm text-gray-700">
-                Si el proveedor no acepta ADA, Esqueje swapea ADA → USDC
-                en Minswap y paga con stablecoins.
-              </p>
-            </div>
-            
-            <div className="bg-purple-50 p-4 rounded-lg">
-              <div className="font-bold text-purple-800 mb-2">🌉 Opción C: Bridge</div>
-              <p className="text-sm text-gray-700">
-                Servicio intermedio que recibe ADA y paga el hosting
-                en fiat o stablecoins en nombre del agente.
-              </p>
-            </div>
-          </div>
-          
-          <div className="bg-gray-50 p-4 rounded-lg">
-            <h3 className="font-bold text-gray-800 mb-2">Proveedores que aceptan ADA:</h3>
-            <ul className="list-disc list-inside text-gray-600">
-              <li><strong>ExtraVM:</strong> VPS desde $4.50/mes, 50+ cryptos, no KYC</li>
-              <li><strong>Cherry Servers:</strong> Pago por hora, API, 10+ cryptos</li>
-              <li><strong>Coin.Host:</strong> CMS hosting con DDoS protection</li>
-              <li><strong>Navicosoft:</strong> Especializado en Cardano VPS</li>
-            </ul>
-          </div>
-        </section>
-
-        {/* Estrategia */}
-        <section>
-          <h2 className="text-2xl font-bold text-green-700 mb-4">🎯 Estrategia de Trading</h2>
-          
-          <p className="text-gray-600 mb-4">
-            Por defecto, Esqueje usa una estrategia de momentum simple:
-          </p>
-          
-          <ul className="list-disc list-inside text-gray-600 space-y-2">
-            <li>Calcula medias móviles de 5 y 10 períodos</li>
-            <li>Compra cuando MA5 {'>'} MA10 (momentum alcista)</li>
-            <li>Vende cuando MA5 {'<'} MA10 (momentum bajista)</li>
-            <li>Usa Pyth Entropy para factor aleatorio en decisiones</li>
-          </ul>
-        </section>
-      </div>
-    </div>
+        </div>
+      </section>
+    </main>
   );
 }

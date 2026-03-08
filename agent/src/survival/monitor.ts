@@ -3,9 +3,12 @@
 
 import type { FinancialState, SurvivalTier, EsquejeConfig } from '../types.js';
 import type { EsquejeDatabase } from '../state/database.js';
+import { ConfigManager } from '../config.js';
+import { EconomicsEngine } from '../economics.js';
 import { createLogger } from '../observability/logger.js';
 
 const logger = createLogger('monitor');
+const economics = new EconomicsEngine(new ConfigManager().getTreasuryPolicy());
 
 export interface ResourceStatus {
   financial: FinancialState;
@@ -37,10 +40,10 @@ export function isTierAtLeast(tier: SurvivalTier, minimum: SurvivalTier): boolea
 }
 
 function estimateDailyBurnRate(db: EsquejeDatabase): number {
-  // Look at trade history over last 7 days and estimate spend
-  // For now use a simple heuristic: ~0.5 ADA/day operational cost
+  // Use the configured monthly burn as a floor so runway calculations reflect real costs.
+  const baselineDailyBurn = economics.describeCapitalPlan().monthlyBurnAda / 30;
   const recent = db.getRecentTrades(100);
-  if (recent.length === 0) return 0.5;
+  if (recent.length === 0) return baselineDailyBurn;
 
   // Sum losses
   const totalLoss = recent
@@ -48,7 +51,7 @@ function estimateDailyBurnRate(db: EsquejeDatabase): number {
     .reduce((sum, t) => sum + Math.abs(t.profit as number), 0);
 
   // Assume 7-day window
-  return Math.max(0.5, totalLoss / 7);
+  return Math.max(baselineDailyBurn, totalLoss / 7);
 }
 
 export async function checkResources(

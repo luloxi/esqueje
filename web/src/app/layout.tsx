@@ -18,7 +18,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 export const metadata: Metadata = {
   title: "Esqueje — Agente soberano en Cardano",
   description:
-    "Agente autónomo que paga su propia existencia en ADA. Con soul persistente, heartbeat daemon, policy engine y survival tiers.",
+    "Runtime autónomo sobre Cardano con soul persistente, heartbeat daemon, policy engine y tesorería explícita para lanzar agentes viables en ADA.",
   icons: {
     icon: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌱</text></svg>",
   },

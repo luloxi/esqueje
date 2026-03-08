@@ -6,8 +6,7 @@ export class SurvivalMonitor {
   private readonly HEALTHY_RUNWAY_DAYS = 90;
   private readonly LOW_RUNWAY_DAYS = 30;
   private readonly CRITICAL_RUNWAY_DAYS = 10;
-  private readonly MIN_TRADES_FOR_REPLICATION = 12;
-  private readonly MIN_PROFIT_FOR_REPLICATION = 25;
+  private readonly MIN_PROFIT_FOR_REPLICATION = 90;
   
   evaluateStatus(snapshot: TreasurySnapshot): 'healthy' | 'low' | 'critical' | 'dead' {
     if (snapshot.balanceAda <= 0) return 'dead';
@@ -20,12 +19,11 @@ export class SurvivalMonitor {
   async shouldReplicate(
     snapshot: TreasurySnapshot,
     totalProfit: number,
-    tradesCount: number
+    _tradesCount: number
   ): Promise<boolean> {
     return (
       snapshot.runwayDays >= this.HEALTHY_RUNWAY_DAYS &&
-      snapshot.spendableAda > snapshot.monthlyHostingAda &&
-      tradesCount >= this.MIN_TRADES_FOR_REPLICATION &&
+      snapshot.balanceAda >= snapshot.recommendedParentBalanceAda &&
       totalProfit >= this.MIN_PROFIT_FOR_REPLICATION
     );
   }

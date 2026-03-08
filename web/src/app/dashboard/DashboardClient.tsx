@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { BrowserWallet } from '@meshsdk/core';
 import { deployVaultContract, submitContractTx } from '@/lib/marlowe';
+import { getCapitalPlan } from '@/lib/runtimeEconomics';
 
 export interface AgentConfig {
   id: string;
@@ -19,13 +20,18 @@ interface WalletInfo {
   version: string;
 }
 
+const capitalPlan = getCapitalPlan();
 const DEFAULT_RUNTIME = 'https://preprod.marlowe-runtime.iog.io';
 const LS_AGENTS = 'esqueje:agents';
 const LS_RUNTIME = 'esqueje:runtimeUrl';
 
-function truncate(addr: string) {
-  if (addr.length < 20) return addr;
-  return `${addr.slice(0, 12)}...${addr.slice(-8)}`;
+function truncate(value: string) {
+  if (value.length < 20) return value;
+  return `${value.slice(0, 12)}...${value.slice(-8)}`;
+}
+
+function isCardanoAddress(value: string) {
+  return value.startsWith('addr1') || value.startsWith('addr_test1');
 }
 
 export default function DashboardClient() {
@@ -35,47 +41,57 @@ export default function DashboardClient() {
   const [walletAddress, setWalletAddress] = useState('');
   const [walletAda, setWalletAda] = useState<number | null>(null);
   const [showWalletPicker, setShowWalletPicker] = useState(false);
-  const [connecting, setConnecting] = useState(''); // wallet name being connected
+  const [connecting, setConnecting] = useState('');
 
   const [agents, setAgents] = useState<AgentConfig[]>([]);
   const [runtimeUrl, setRuntimeUrl] = useState(DEFAULT_RUNTIME);
   const [showAddAgent, setShowAddAgent] = useState(false);
-  const [newAgent, setNewAgent] = useState({ name: '', address: '', allocationAda: 50 });
+  const [newAgent, setNewAgent] = useState({
+    name: '',
+    address: '',
+    allocationAda: capitalPlan.minimumOperationalBalanceAda,
+  });
   const [deploying, setDeploying] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Detect installed wallets and load persisted state
   useEffect(() => {
     setAvailableWallets(BrowserWallet.getInstalledWallets());
     try {
-      const saved = localStorage.getItem(LS_AGENTS);
-      if (saved) setAgents(JSON.parse(saved));
-      const rt = localStorage.getItem(LS_RUNTIME);
-      if (rt) setRuntimeUrl(rt);
-    } catch { /* ignore */ }
+      const savedAgents = localStorage.getItem(LS_AGENTS);
+      const savedRuntime = localStorage.getItem(LS_RUNTIME);
+      if (savedAgents) setAgents(JSON.parse(savedAgents));
+      if (savedRuntime) setRuntimeUrl(savedRuntime);
+    } catch {
+      // ignore local storage parsing failures
+    }
   }, []);
 
   async function connect(name: string) {
     setError(null);
+    setSuccess(null);
     setConnecting(name);
     setShowWalletPicker(false);
+
     try {
-      // 90-second timeout. Lace shows the approval request INSIDE the extension popup —
-      // the user has to click the Lace icon in the browser toolbar to see and approve it.
-      const w = await Promise.race([
+      const enabledWallet = await Promise.race([
         BrowserWallet.enable(name),
         new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error(
-            `La wallet no respondió. Asegurate de haber aprobado la conexión dentro de la extensión ${name}.`
-          )), 90_000)
+          setTimeout(() => {
+            reject(
+              new Error(
+                `La wallet ${name} no respondió. Revisá la extensión y aprobá la conexión.`
+              )
+            );
+          }, 90_000)
         ),
       ]);
-      setWallet(w);
+
+      setWallet(enabledWallet);
       setWalletName(name);
-      const addr = await w.getChangeAddress();
+      const addr = await enabledWallet.getChangeAddress();
       setWalletAddress(addr);
-      const lovelace = await w.getLovelace();
+      const lovelace = await enabledWallet.getLovelace();
       setWalletAda(Math.floor(Number(lovelace) / 1_000_000));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al conectar wallet');
@@ -102,34 +118,79 @@ export default function DashboardClient() {
   }
 
   function addAgent() {
-    if (!newAgent.name.trim() || !newAgent.address.trim() || newAgent.allocationAda <= 0) return;
-    saveAgents([...agents, { id: Date.now().toString(), ...newAgent }]);
-    setNewAgent({ name: '', address: '', allocationAda: 50 });
+    setError(null);
+    setSuccess(null);
+
+    if (!newAgent.name.trim()) {
+      setError('Poné un nombre para identificar el agente.');
+      return;
+    }
+
+    if (!isCardanoAddress(newAgent.address.trim())) {
+      setError('La dirección del agente debe empezar con addr1 o addr_test1.');
+      return;
+    }
+
+    if (newAgent.allocationAda < capitalPlan.minimumOperationalBalanceAda) {
+      setError(
+        `La asignación mínima recomendada es ${capitalPlan.minimumOperationalBalanceAda} ADA por agente.`
+      );
+      return;
+    }
+
+    saveAgents([
+      ...agents,
+      {
+        id: Date.now().toString(),
+        name: newAgent.name.trim(),
+        address: newAgent.address.trim(),
+        allocationAda: newAgent.allocationAda,
+      },
+    ]);
+    setNewAgent({
+      name: '',
+      address: '',
+      allocationAda: capitalPlan.minimumOperationalBalanceAda,
+    });
     setShowAddAgent(false);
+    setSuccess('Agente registrado en el dashboard local.');
   }
 
   async function deployVault(agent: AgentConfig) {
-    if (!wallet) return setError('Conectá tu wallet primero.');
+    if (!wallet) {
+      setError('Conectá la wallet del operador antes de desplegar un vault.');
+      return;
+    }
+
     setDeploying(agent.id);
     setError(null);
     setSuccess(null);
+
     try {
       const funder = await wallet.getChangeAddress();
       const now = Date.now();
       const { contractId, txCborHex } = await deployVaultContract(
-        runtimeUrl, funder, agent.address,
+        runtimeUrl,
+        funder,
+        agent.address,
         agent.allocationAda * 1_000_000,
-        now + 24 * 60 * 60 * 1000,  // deposit deadline: 24h
-        now + 30 * 24 * 60 * 60 * 1000, // period end: 30 días
+        now + 24 * 60 * 60 * 1000,
+        now + 30 * 24 * 60 * 60 * 1000,
       );
+
       const signedTx = await wallet.signTx(txCborHex, true);
       await submitContractTx(runtimeUrl, contractId, signedTx);
-      saveAgents(agents.map(a =>
-        a.id === agent.id ? { ...a, contractId, deployedAt: Date.now() } : a,
-      ));
-      setSuccess(`Vault deployado para ${agent.name} — Contract: ${contractId}`);
+
+      saveAgents(
+        agents.map((current) =>
+          current.id === agent.id
+            ? { ...current, contractId, deployedAt: Date.now() }
+            : current
+        )
+      );
+      setSuccess(`Vault desplegado para ${agent.name}. Contract ID: ${contractId}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error desconocido');
+      setError(err instanceof Error ? err.message : 'Error desconocido al desplegar el vault');
     } finally {
       setDeploying(null);
     }
@@ -138,24 +199,76 @@ export default function DashboardClient() {
   const connected = !!wallet;
 
   return (
-    <div className="mx-auto max-w-4xl px-4 pt-4 pb-16 md:px-6 space-y-8">
-
-      {/* Header */}
+    <div className="mx-auto max-w-5xl space-y-8 px-4 pt-4 pb-16 md:px-6">
       <div className="space-y-3">
         <div className="font-mono text-xs uppercase tracking-[0.3em] text-[var(--accent)]">
-          Panel de control
+          Control y monitoreo
         </div>
-        <h1 className="text-4xl font-bold leading-tight">Vault de agentes</h1>
-        <p className="max-w-2xl text-[var(--muted)] leading-7">
-          Conectá tu wallet para gestionar los presupuestos asignados a tus instancias de Esqueje.
-          Cada agente recibe una asignación en un contrato Marlowe — los fondos no reclamados vuelven a tu wallet al vencer el período.
+        <h1 className="text-4xl font-bold leading-tight">Dashboard de agentes</h1>
+        <p className="max-w-3xl text-[var(--muted)] leading-7">
+          Acá conectás la <strong className="text-[var(--foreground)]">wallet del humano operador</strong>,
+          no la wallet interna del agente. La usás para fondear, crear vaults y llevar un inventario local
+          de direcciones de agentes que después seguís con logs, Blockfrost y contratos on-chain.
         </p>
       </div>
 
-      {/* Wallet section */}
+      <div className="grid gap-4 md:grid-cols-3">
+        {[
+          [
+            '1. Conectar wallet',
+            'Es la wallet del humano que firma el vault y controla presupuesto. Debe tener ADA para fondear.',
+          ],
+          [
+            '2. Registrar agente',
+            'Pegá la dirección `addr1...` o `addr_test1...` que el agente imprimió en logs después del primer boot.',
+          ],
+          [
+            '3. Monitorear',
+            'El dashboard guarda contrato, presupuesto y dirección. El estado operativo real hoy se sigue por logs y Blockfrost.',
+          ],
+        ].map(([title, body]) => (
+          <div key={title as string} className="panel rounded-2xl p-5">
+            <div className="mb-2 font-mono text-xs uppercase tracking-widest text-[var(--accent-2)]">
+              {title}
+            </div>
+            <p className="text-sm leading-6 text-[var(--muted)]">{body}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="panel-strong rounded-[1.75rem] p-6">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">
+              Presupuesto recomendado
+            </div>
+            <h2 className="mt-1 text-2xl font-bold">{capitalPlan.minimumOperationalBalanceAda} ADA por agente</h2>
+          </div>
+          <div className="rounded-full border border-[var(--border)] px-4 py-2 font-mono text-xs text-[var(--muted)]">
+            Padre para replicar: {capitalPlan.recommendedParentBalanceAda} ADA
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-4">
+          {[
+            ['burn mensual', `${capitalPlan.monthlyBurnAda} ADA`],
+            ['reserva 90 días', `${capitalPlan.targetReserveAda} ADA`],
+            ['capital de trading', `${capitalPlan.requiredTradingCapitalAda} ADA`],
+            ['seed por hijo', `${capitalPlan.replicationSeedAda} ADA`],
+          ].map(([label, value]) => (
+            <div key={label as string} className="rounded-xl border border-[var(--border)] bg-black/10 px-4 py-4">
+              <div className="mb-1 font-mono text-[10px] uppercase tracking-[0.2em] text-[var(--muted)]">{label}</div>
+              <div className="text-lg font-bold text-[var(--foreground)]">{value}</div>
+            </div>
+          ))}
+        </div>
+        <p className="mt-4 text-xs text-[var(--muted)]">
+          Datos ilustrativos. Si registrás un agente por debajo de ese mínimo, el dashboard lo toma como subcapitalizado.
+        </p>
+      </div>
+
       <div className="panel rounded-2xl p-6">
         {connected ? (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
             <div className="space-y-1">
               <div className="font-mono text-xs uppercase tracking-widest text-[var(--muted)]">
                 {walletName} conectada
@@ -164,7 +277,7 @@ export default function DashboardClient() {
               {walletAda !== null && (
                 <div className="text-2xl font-bold">
                   {walletAda.toLocaleString('es-AR')}{' '}
-                  <span className="text-[var(--accent)] text-base font-normal">ADA</span>
+                  <span className="text-base font-normal text-[var(--accent)]">ADA</span>
                 </div>
               )}
             </div>
@@ -176,63 +289,54 @@ export default function DashboardClient() {
             </button>
           </div>
         ) : (
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div className="space-y-1">
-              <div className="font-mono text-xs uppercase tracking-widest text-[var(--muted)]">Sin wallet</div>
-                {connecting ? (
-                <div className="space-y-2">
-                  <p className="text-sm text-[var(--accent)]">
-                    Esperando aprobación de <span className="capitalize font-semibold">{connecting}</span>…
+          <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+            <div className="space-y-2">
+              <div className="font-mono text-xs uppercase tracking-widest text-[var(--muted)]">
+                Wallet del operador
+              </div>
+              {connecting ? (
+                <div className="space-y-1 text-sm text-[var(--muted)]">
+                  <p className="text-[var(--accent)]">
+                    Esperando aprobación de <span className="font-semibold capitalize">{connecting}</span>.
                   </p>
-                  <div className="space-y-1 text-xs text-[var(--muted)]">
-                    {connecting.toLowerCase() === 'lace' ? (
-                      <>
-                        <p>→ Lace abre una <strong className="text-[var(--foreground)]">ventana separada</strong> para pedir tu aprobación.</p>
-                        <p>→ Buscá esa ventana en la barra de tareas o entre tus ventanas abiertas.</p>
-                        <p>→ Dentro de esa ventana vas a ver un botón <strong className="text-[var(--foreground)]">"Authorize"</strong> o <strong className="text-[var(--foreground)]">"Connect"</strong> — hacé clic ahí.</p>
-                        <p>→ Si la ventana no apareció, tu navegador puede estar bloqueando popups. Buscá el ícono de popup bloqueado en la barra de dirección y permití los popups de este sitio.</p>
-                      </>
-                    ) : (
-                      <p>→ Revisá si apareció un popup de <span className="capitalize">{connecting}</span> en tu navegador y aprobá la conexión.</p>
-                    )}
-                  </div>
+                  <p>Revisá la extensión o el popup de tu navegador y autorizá la conexión.</p>
                 </div>
               ) : (
                 <p className="text-sm text-[var(--muted)]">
                   {availableWallets.length === 0
-                    ? 'No se detectaron wallets Cardano. Instalá Lace, Eternl o Nami en tu navegador.'
-                    : `Detectadas: ${availableWallets.map(w => w.name).join(', ')}`
-                  }
+                    ? 'No se detectaron wallets Cardano. Instalá Lace, Eternl o Nami.'
+                    : `Detectadas: ${availableWallets.map((current) => current.name).join(', ')}`}
                 </p>
               )}
             </div>
+
             <div className="relative shrink-0">
               {connecting ? (
-                <div className="rounded-full border border-[var(--accent)]/40 px-5 py-2.5 text-sm text-[var(--accent)] font-mono">
-                  conectando…
+                <div className="rounded-full border border-[var(--accent)]/40 px-5 py-2.5 text-sm font-mono text-[var(--accent)]">
+                  conectando...
                 </div>
               ) : (
                 <>
                   <button
-                    onClick={() => setShowWalletPicker(v => !v)}
+                    onClick={() => setShowWalletPicker((value) => !value)}
                     disabled={availableWallets.length === 0}
-                    className="rounded-full bg-white px-5 py-2.5 text-sm font-bold text-black transition hover:bg-[var(--accent)] disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="rounded-full bg-[var(--foreground)] px-5 py-2.5 text-sm font-bold text-[var(--background)] transition hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     Conectar wallet
                   </button>
                   {showWalletPicker && availableWallets.length > 0 && (
-                    <div className="absolute right-0 top-full mt-2 z-10 min-w-[160px] rounded-2xl border border-[var(--border)] bg-[#0d1f16] shadow-xl">
-                      {availableWallets.map(w => (
+                    <div className="absolute right-0 top-full z-10 mt-2 min-w-[180px] rounded-2xl border border-[var(--border)] bg-[#0d1f16] shadow-xl">
+                      {availableWallets.map((available) => (
                         <button
-                          key={w.name}
-                          onClick={() => connect(w.name)}
-                          className="flex w-full items-center gap-3 px-4 py-3 text-sm text-[var(--foreground)] transition hover:bg-white/5 first:rounded-t-2xl last:rounded-b-2xl"
+                          key={available.name}
+                          onClick={() => connect(available.name)}
+                          className="flex w-full items-center gap-3 px-4 py-3 text-sm text-[var(--foreground)] transition hover:bg-[var(--panel)] first:rounded-t-2xl last:rounded-b-2xl"
                         >
-                          {w.icon && (
+                          {available.icon && (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={w.icon} alt={w.name} width={20} height={20} className="rounded-sm" />
+                            <img src={available.icon} alt={available.name} width={20} height={20} className="rounded-sm" />
                           )}
-                          <span className="capitalize">{w.name}</span>
+                          <span className="capitalize">{available.name}</span>
                         </button>
                       ))}
                     </div>
@@ -244,42 +348,45 @@ export default function DashboardClient() {
         )}
       </div>
 
-      {/* Alerts */}
       {error && (
         <div className="rounded-2xl border border-red-400/30 bg-red-400/10 px-5 py-4 text-sm text-red-300">
-          <span className="font-mono text-xs uppercase tracking-widest block mb-1 text-red-400">Error</span>
+          <span className="mb-1 block font-mono text-xs uppercase tracking-widest text-red-400">Error</span>
           {error}
         </div>
       )}
+
       {success && (
         <div className="rounded-2xl border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-5 py-4 text-sm text-[var(--accent)]">
-          <span className="font-mono text-xs uppercase tracking-widest block mb-1">OK</span>
+          <span className="mb-1 block font-mono text-xs uppercase tracking-widest">OK</span>
           {success}
         </div>
       )}
 
-      {/* Agents */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-bold">Tus agentes</h2>
           <button
-            onClick={() => setShowAddAgent(v => !v)}
+            onClick={() => setShowAddAgent((value) => !value)}
             className="rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-white"
           >
-            {showAddAgent ? 'Cancelar' : '+ Agregar agente'}
+            {showAddAgent ? 'Cancelar' : '+ Registrar agente'}
           </button>
         </div>
 
         {showAddAgent && (
           <div className="panel-strong rounded-2xl p-5 space-y-4">
-            <div className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">Nuevo agente</div>
+            <div className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">
+              Nuevo agente
+            </div>
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="space-y-1">
                 <label className="text-xs text-[var(--muted)]">Nombre</label>
                 <input
                   value={newAgent.name}
-                  onChange={e => setNewAgent(v => ({ ...v, name: e.target.value }))}
-                  placeholder="Agente 1"
+                  onChange={(event) =>
+                    setNewAgent((current) => ({ ...current, name: event.target.value }))
+                  }
+                  placeholder="Esqueje hijo 01"
                   className="w-full rounded-xl border border-[var(--border)] bg-black/20 px-3 py-2 text-sm text-[var(--foreground)] placeholder-[var(--muted)]/50 outline-none focus:border-[var(--accent)]"
                 />
               </div>
@@ -287,96 +394,123 @@ export default function DashboardClient() {
                 <label className="text-xs text-[var(--muted)]">Dirección Cardano</label>
                 <input
                   value={newAgent.address}
-                  onChange={e => setNewAgent(v => ({ ...v, address: e.target.value }))}
-                  placeholder="addr1q… o addr_test1…"
+                  onChange={(event) =>
+                    setNewAgent((current) => ({ ...current, address: event.target.value }))
+                  }
+                  placeholder="addr1... o addr_test1..."
                   className="w-full rounded-xl border border-[var(--border)] bg-black/20 px-3 py-2 font-mono text-xs text-[var(--foreground)] placeholder-[var(--muted)]/50 outline-none focus:border-[var(--accent)]"
                 />
               </div>
               <div className="space-y-1">
-                <label className="text-xs text-[var(--muted)]">Asignación (ADA)</label>
+                <label className="text-xs text-[var(--muted)]">Asignación ADA</label>
                 <input
-                  type="number" min={1}
+                  type="number"
+                  min={capitalPlan.minimumOperationalBalanceAda}
                   value={newAgent.allocationAda}
-                  onChange={e => setNewAgent(v => ({ ...v, allocationAda: Number(e.target.value) }))}
+                  onChange={(event) =>
+                    setNewAgent((current) => ({
+                      ...current,
+                      allocationAda: Number(event.target.value),
+                    }))
+                  }
                   className="w-full rounded-xl border border-[var(--border)] bg-black/20 px-3 py-2 text-sm text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
                 />
               </div>
             </div>
+            <p className="text-xs text-[var(--muted)]">
+              Usá la dirección que el agente ya imprimió en logs. El dashboard no genera esa wallet.
+            </p>
             <button
               onClick={addAgent}
-              className="rounded-full bg-white px-6 py-2 text-sm font-bold text-black transition hover:bg-[var(--accent)]"
+              className="rounded-full bg-[var(--foreground)] px-6 py-2 text-sm font-bold text-[var(--background)] transition hover:bg-[var(--accent)]"
             >
-              Agregar
+              Guardar agente
             </button>
           </div>
         )}
 
         {agents.length === 0 && !showAddAgent && (
           <div className="rounded-2xl border border-[var(--border)] bg-black/10 px-5 py-8 text-center text-sm text-[var(--muted)]">
-            No hay agentes configurados. Agregá la dirección Cardano de tu instancia de Esqueje.
+            No hay agentes registrados. Arrancá una instancia, copiá su dirección desde los logs y cargala acá.
           </div>
         )}
 
         <div className="space-y-3">
-          {agents.map(agent => (
-            <div key={agent.id} className="panel rounded-2xl p-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="space-y-1 min-w-0">
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold">{agent.name}</span>
-                    {agent.contractId && (
-                      <span className="rounded-full border border-[var(--accent)]/40 px-2 py-0.5 font-mono text-[10px] text-[var(--accent)]">
-                        vault activo
-                      </span>
-                    )}
-                  </div>
-                  <div className="font-mono text-xs text-[var(--muted)] truncate">{agent.address}</div>
-                  <div className="text-sm text-[var(--foreground)]">
-                    Asignación:{' '}
-                    <span className="font-bold text-[var(--accent-2)]">{agent.allocationAda} ADA</span>
-                    {agent.contractId && (
-                      <span className="ml-3 font-mono text-[10px] text-[var(--muted)]">
-                        {truncate(agent.contractId)}
-                      </span>
-                    )}
-                  </div>
-                  {agent.deployedAt && (
-                    <div className="text-xs text-[var(--muted)]">
-                      Deployado: {new Date(agent.deployedAt).toLocaleDateString('es-AR')} · vence en 30 días
+          {agents.map((agent) => {
+            const underfunded = agent.allocationAda < capitalPlan.minimumOperationalBalanceAda;
+
+            return (
+              <div key={agent.id} className="panel rounded-2xl p-5">
+                <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <span className="font-semibold">{agent.name}</span>
+                      {agent.contractId && (
+                        <span className="rounded-full border border-[var(--accent)]/40 px-2 py-0.5 font-mono text-[10px] text-[var(--accent)]">
+                          vault activo
+                        </span>
+                      )}
+                      {underfunded && (
+                        <span className="rounded-full border border-orange-400/30 px-2 py-0.5 font-mono text-[10px] text-orange-300">
+                          subcapitalizado
+                        </span>
+                      )}
                     </div>
-                  )}
-                </div>
-                <div className="flex gap-2 shrink-0">
-                  {!agent.contractId && (
+                    <div className="truncate font-mono text-xs text-[var(--muted)]">{agent.address}</div>
+                    <div className="text-sm text-[var(--foreground)]">
+                      Asignación:{' '}
+                      <span className="font-bold text-[var(--accent-2)]">{agent.allocationAda} ADA</span>
+                      {agent.contractId && (
+                        <span className="ml-3 font-mono text-[10px] text-[var(--muted)]">
+                          {truncate(agent.contractId)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-[var(--muted)]">
+                      {underfunded
+                        ? `Debajo del mínimo recomendado de ${capitalPlan.minimumOperationalBalanceAda} ADA.`
+                        : `Dentro del rango sano definido por el runtime (${capitalPlan.minimumOperationalBalanceAda}+ ADA).`}
+                    </div>
+                    {agent.deployedAt && (
+                      <div className="text-xs text-[var(--muted)]">
+                        Vault desplegado: {new Date(agent.deployedAt).toLocaleDateString('es-AR')} · vence en 30 días
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 shrink-0">
+                    {!agent.contractId && (
+                      <button
+                        onClick={() => deployVault(agent)}
+                        disabled={!connected || deploying === agent.id}
+                        className="rounded-full bg-[var(--foreground)] px-4 py-2 text-xs font-bold text-[var(--background)] transition hover:bg-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        {deploying === agent.id ? 'Deployando...' : 'Deploy vault'}
+                      </button>
+                    )}
                     <button
-                      onClick={() => deployVault(agent)}
-                      disabled={!connected || deploying === agent.id}
-                      className="rounded-full bg-white px-4 py-2 text-xs font-bold text-black transition hover:bg-[var(--accent)] disabled:opacity-40 disabled:cursor-not-allowed"
+                      onClick={() => saveAgents(agents.filter((current) => current.id !== agent.id))}
+                      className="rounded-full border border-red-400/30 px-3 py-2 text-xs text-red-400 transition hover:border-red-400/60"
                     >
-                      {deploying === agent.id ? 'Deployando…' : 'Deploy vault'}
+                      Eliminar
                     </button>
-                  )}
-                  <button
-                    onClick={() => saveAgents(agents.filter(a => a.id !== agent.id))}
-                    className="rounded-full border border-red-400/30 px-3 py-2 text-xs text-red-400 transition hover:border-red-400/60"
-                  >
-                    Eliminar
-                  </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      {/* How it works */}
       <div className="panel-strong rounded-2xl p-6 space-y-4">
-        <div className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">Cómo funciona el vault</div>
+        <div className="font-mono text-xs uppercase tracking-widest text-[var(--accent)]">
+          Qué monitoreás realmente hoy
+        </div>
         <div className="grid gap-3 sm:grid-cols-3">
           {[
-            ['1. Deploy', 'Se crea un contrato Marlowe on-chain que bloquea la asignación para el agente.'],
-            ['2. Agente reclama', 'El agente detecta el contrato y envía una transacción "claim" para recibir los fondos.'],
-            ['3. Vence el plazo', 'Si el agente no reclama en 30 días, Close devuelve los ADA a tu wallet.'],
+            ['Vault', 'Contract ID, fecha de despliegue y vencimiento del presupuesto.'],
+            ['Dirección', 'La wallet on-chain del agente, necesaria para fondeo y trazabilidad.'],
+            ['Estado operativo', 'Todavía se sigue afuera del dashboard: `pm2 logs`, Blockfrost y el host donde corre el runtime.'],
           ].map(([title, desc]) => (
             <div key={title as string} className="rounded-xl border border-[var(--border)] bg-black/10 p-4">
               <div className="mb-1 font-mono text-xs font-bold text-[var(--accent-2)]">{title}</div>
@@ -386,28 +520,40 @@ export default function DashboardClient() {
         </div>
         <p className="text-xs text-[var(--muted)]">
           Protocolo:{' '}
-          <a href="https://marlowe.iohk.io" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-2)] hover:underline">Marlowe</a>
-          {' '}— contratos financieros verificables en Cardano. Auditables en{' '}
-          <a href="https://preprod.marlowescan.com" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-2)] hover:underline">Marlowe Scan</a>.
+          <a
+            href="https://marlowe.iohk.io"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--accent-2)] hover:underline"
+          >
+            Marlowe
+          </a>
+          {' '}para vaults on-chain. El contrato es auditable en{' '}
+          <a
+            href="https://preprod.marlowescan.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--accent-2)] hover:underline"
+          >
+            Marlowe Scan
+          </a>
+          .
         </p>
       </div>
 
-      {/* Runtime config */}
       <div className="rounded-2xl border border-[var(--border)] bg-black/10 p-5 space-y-3">
-        <div className="font-mono text-xs uppercase tracking-widest text-[var(--muted)]">Marlowe Runtime URL</div>
+        <div className="font-mono text-xs uppercase tracking-widest text-[var(--muted)]">
+          Runtime Marlowe
+        </div>
         <p className="text-xs text-[var(--muted)]">
-          Default: preprod (red de pruebas). Mainnet:{' '}
-          <code className="font-mono text-[var(--accent-2)]">https://mainnet.marlowe-runtime.iog.io</code>.
-          {' '}Runtime propio via{' '}
-          <a href="https://demeter.run" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-2)] hover:underline">demeter.run</a>.
+          Default: preprod. Si querés mainnet, cambiá el endpoint. Este valor sólo afecta el vault del dashboard.
         </p>
         <input
           value={runtimeUrl}
-          onChange={e => saveRuntime(e.target.value)}
+          onChange={(event) => saveRuntime(event.target.value)}
           className="w-full rounded-xl border border-[var(--border)] bg-black/20 px-3 py-2 font-mono text-xs text-[var(--foreground)] outline-none focus:border-[var(--accent)]"
         />
       </div>
-
     </div>
   );
 }

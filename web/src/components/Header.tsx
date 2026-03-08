@@ -12,13 +12,13 @@ export default function Header() {
       <nav className="flex items-center gap-1">
         <Link
           href="/caracteristicas"
-          className="rounded-full px-4 py-2 text-sm text-[var(--muted)] transition hover:bg-white/5 hover:text-white"
+          className="rounded-full px-4 py-2 text-sm text-[var(--muted)] transition hover:bg-[var(--panel)] hover:text-white"
         >
           Características
         </Link>
         <Link
           href="/instalar"
-          className="rounded-full px-4 py-2 text-sm text-[var(--muted)] transition hover:bg-white/5 hover:text-white"
+          className="rounded-full px-4 py-2 text-sm text-[var(--muted)] transition hover:bg-[var(--panel)] hover:text-white"
         >
           Instalar
         </Link>

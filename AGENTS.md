@@ -68,14 +68,15 @@ Si el agente cambia, la web debe reflejar ese cambio antes del próximo push.
 5. Compilar la web: `cd web && npm run build`
 6. Commit y push
 
-## Estado actual del agente (v0.2.0)
+## Estado actual del agente (v0.3.0)
 
 - **Soul System**: SOUL.md con formato soul/v1 (YAML frontmatter)
 - **Heartbeat Daemon**: recursive setTimeout, DurableScheduler en SQLite
 - **Survival tiers**: healthy / low_compute / critical / dead
 - **Funding strategies**: notificaciones con cooldown por tier
-- **Policy Engine**: 4 reglas (critical block, max size 10%, rate limit 12/h, reserve 2 ADA)
-- **Agent Loop**: while(true) con sleep/wake events
+- **Tesorería explícita**: burn mensual, reserva de runway, mínimo sano por agente y seed mínimo para replicación
+- **Policy Engine**: 4 reglas (critical block, max size 12%, rate limit 12/h, reserve = runway de emergencia)
+- **Agent Loop**: while(true) con sleep/wake events y chequeo de replicación por beneficio mensual + caja mínima
 - **SQLite State**: node:sqlite nativo, 7 tablas
 - **Constitution**: 3 leyes éticas heredables
 

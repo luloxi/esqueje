@@ -2,7 +2,7 @@ import ClientWrapper from './ClientWrapper';
 
 export const metadata = {
   title: 'Dashboard — Esqueje',
-  description: 'Conectá tu wallet para gestionar vaults Marlowe y asignar presupuesto ADA a tus agentes.',
+  description: 'Conectá la wallet del operador para registrar agentes, desplegar vaults Marlowe y controlar presupuesto ADA.',
 };
 
 export default function Dashboard() {
