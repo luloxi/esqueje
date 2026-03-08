@@ -68,13 +68,13 @@ export default function Home() {
             <div className="flex flex-wrap gap-4">
               <Link
                 href="/instalar"
-                className="rounded-full bg-[var(--accent)] px-7 py-3 font-semibold text-[#08110d] transition hover:-translate-y-px"
+                className="rounded-full bg-white px-7 py-3 font-bold text-black transition hover:-translate-y-px hover:bg-[var(--accent)]"
               >
                 Instalar el agente
               </Link>
               <Link
                 href="/caracteristicas"
-                className="rounded-full border border-[var(--border)] px-7 py-3 font-semibold text-white transition hover:border-[var(--accent)]"
+                className="rounded-full border border-[var(--border)] px-7 py-3 font-semibold text-[var(--foreground)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
               >
                 Ver características
               </Link>
@@ -201,7 +201,7 @@ export default function Home() {
           </div>
           <Link
             href="/dashboard"
-            className="shrink-0 rounded-full bg-[var(--accent)] px-7 py-3 font-semibold text-[#08110d] transition hover:-translate-y-px"
+            className="shrink-0 rounded-full bg-white px-7 py-3 font-bold text-black transition hover:-translate-y-px hover:bg-[var(--accent)]"
           >
             Ir al Dashboard →
           </Link>
