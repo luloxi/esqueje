@@ -1,27 +1,30 @@
+import type { TreasurySnapshot } from './economics.js';
+
 // Monitor de supervivencia
 
 export class SurvivalMonitor {
-  private readonly HEALTHY_THRESHOLD = 50;  // ADA
-  private readonly LOW_THRESHOLD = 20;      // ADA
-  private readonly CRITICAL_THRESHOLD = 5;  // ADA
-  private readonly REPLICATION_THRESHOLD = 200; // ADA
-  private readonly MIN_TRADES_FOR_REPLICATION = 10;
-  private readonly MIN_PROFIT_FOR_REPLICATION = 20; // ADA
+  private readonly HEALTHY_RUNWAY_DAYS = 90;
+  private readonly LOW_RUNWAY_DAYS = 30;
+  private readonly CRITICAL_RUNWAY_DAYS = 10;
+  private readonly MIN_TRADES_FOR_REPLICATION = 12;
+  private readonly MIN_PROFIT_FOR_REPLICATION = 25;
   
-  evaluateStatus(balance: number): 'healthy' | 'low' | 'critical' | 'dead' {
-    if (balance <= 0) return 'dead';
-    if (balance < this.CRITICAL_THRESHOLD) return 'critical';
-    if (balance < this.LOW_THRESHOLD) return 'low';
+  evaluateStatus(snapshot: TreasurySnapshot): 'healthy' | 'low' | 'critical' | 'dead' {
+    if (snapshot.balanceAda <= 0) return 'dead';
+    if (snapshot.runwayDays < this.CRITICAL_RUNWAY_DAYS) return 'critical';
+    if (snapshot.runwayDays < this.LOW_RUNWAY_DAYS) return 'low';
+    if (snapshot.runwayDays < this.HEALTHY_RUNWAY_DAYS) return 'low';
     return 'healthy';
   }
   
   async shouldReplicate(
-    balance: number,
+    snapshot: TreasurySnapshot,
     totalProfit: number,
     tradesCount: number
   ): Promise<boolean> {
     return (
-      balance >= this.REPLICATION_THRESHOLD &&
+      snapshot.runwayDays >= this.HEALTHY_RUNWAY_DAYS &&
+      snapshot.spendableAda > snapshot.monthlyHostingAda &&
       tradesCount >= this.MIN_TRADES_FOR_REPLICATION &&
       totalProfit >= this.MIN_PROFIT_FOR_REPLICATION
     );
@@ -29,10 +32,9 @@ export class SurvivalMonitor {
   
   getThresholds() {
     return {
-      healthy: this.HEALTHY_THRESHOLD,
-      low: this.LOW_THRESHOLD,
-      critical: this.CRITICAL_THRESHOLD,
-      replication: this.REPLICATION_THRESHOLD,
+      healthyRunwayDays: this.HEALTHY_RUNWAY_DAYS,
+      lowRunwayDays: this.LOW_RUNWAY_DAYS,
+      criticalRunwayDays: this.CRITICAL_RUNWAY_DAYS,
     };
   }
 }

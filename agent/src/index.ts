@@ -1,190 +1,326 @@
-// Esqueje Agent - Core
-// Agente autónomo que tradea con Pyth en Cardano
+// Esqueje Agent — Main Entry Point
+// Autonomous AI agent that survives by paying for its existence in ADA on Cardano
 
+import 'dotenv/config';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
 import chalk from 'chalk';
-import cron from 'node-cron';
-import { PythClient } from './pyth.js';
+
+import { EsquejeDatabase } from './state/database.js';
 import { WalletManager } from './wallet.js';
+import { PythClient } from './pyth.js';
 import { TradingEngine } from './trading.js';
-import { SurvivalMonitor } from './survival.js';
-import { ConfigManager } from './config.js';
+import { PolicyEngine } from './agent/policy-engine.js';
+import { runAgentLoop } from './agent/loop.js';
+import { createHeartbeatDaemon } from './heartbeat/daemon.js';
+import { buildBuiltinTasks, DEFAULT_TASK_SCHEDULES } from './heartbeat/tasks.js';
+import {
+  loadCurrentSoul,
+  createDefaultSoul,
+  saveSoul,
+  createHash,
+} from './soul/model.js';
+import { createLogger } from './observability/logger.js';
+import type { EsquejeConfig, EsquejeIdentity, AgentState } from './types.js';
 
-export interface AgentState {
-  balance: number;
-  status: 'healthy' | 'low' | 'critical' | 'dead';
-  tradesCount: number;
-  totalProfit: number;
-  lastPrice: number | null;
-  createdAt: Date;
-  generation: number;
-}
+const logger = createLogger('main');
 
-export class EsquejeAgent {
-  private config: ConfigManager;
-  private wallet: WalletManager;
-  private pyth: PythClient;
-  private trading: TradingEngine;
-  private survival: SurvivalMonitor;
-  private state: AgentState;
-  private isRunning: boolean = false;
+// ---------------------------------------------------------------------------
+// Config
+// ---------------------------------------------------------------------------
 
-  constructor() {
-    this.config = new ConfigManager();
-    this.wallet = new WalletManager();
-    this.pyth = new PythClient();
-    this.trading = new TradingEngine();
-    this.survival = new SurvivalMonitor();
-    
-    this.state = {
-      balance: 0,
-      status: 'healthy',
-      tradesCount: 0,
-      totalProfit: 0,
-      lastPrice: null,
-      createdAt: new Date(),
-      generation: 1,
-    };
+const ESQUEJE_DIR = path.join(os.homedir(), '.esqueje');
+const CONFIG_PATH = path.join(ESQUEJE_DIR, 'config.json');
+const DB_PATH = path.join(ESQUEJE_DIR, 'esqueje.db');
+const SOUL_PATH = path.join(ESQUEJE_DIR, 'SOUL.md');
+// constitution.md lives one level above src/
+const CONSTITUTION_PATH = path.join(
+  path.dirname(new URL(import.meta.url).pathname),
+  '..',
+  'constitution.md',
+);
+
+function loadOrCreateConfig(): EsquejeConfig {
+  if (!fs.existsSync(ESQUEJE_DIR)) {
+    fs.mkdirSync(ESQUEJE_DIR, { recursive: true });
   }
 
-  async initialize(): Promise<void> {
-    console.log(chalk.cyan('🌱 Inicializando Esqueje...'));
-    
-    // Cargar o crear wallet
-    await this.wallet.initialize();
-    console.log(chalk.green(`✓ Wallet: ${this.wallet.getAddress()}`));
-    
-    // Verificar balance inicial
-    await this.updateBalance();
-    console.log(chalk.green(`✓ Balance: ${this.state.balance} ADA`));
-    
-    // Inicializar Pyth
-    await this.pyth.initialize();
-    console.log(chalk.green('✓ Pyth Oracle conectado'));
-    
-    console.log(chalk.cyan('🌱 Esqueje listo para operar'));
-  }
-
-  async start(): Promise<void> {
-    if (this.isRunning) return;
-    
-    this.isRunning = true;
-    console.log(chalk.green('▶️ Agente iniciado'));
-    
-    // Loop principal cada 5 minutos
-    cron.schedule('*/5 * * * *', async () => {
-      await this.runCycle();
-    });
-    
-    // Heartbeat cada minuto
-    cron.schedule('* * * * *', async () => {
-      await this.heartbeat();
-    });
-    
-    // Primer ciclo inmediato
-    await this.runCycle();
-  }
-
-  private async runCycle(): Promise<void> {
-    console.log(chalk.blue(`\n[${new Date().toISOString()}] Ciclo de trading`));
-    
+  if (fs.existsSync(CONFIG_PATH)) {
     try {
-      // Actualizar estado
-      await this.updateBalance();
-      await this.checkSurvival();
-      
-      if (this.state.status === 'dead') {
-        console.log(chalk.red('💀 Agente muerto. Deteniendo...'));
-        this.stop();
-        return;
-      }
-      
-      if (this.state.status === 'critical') {
-        console.log(chalk.yellow('⚠️ Modo supervivencia. No tradeando.'));
-        return;
-      }
-      
-      // Obtener precio de Pyth
-      const price = await this.pyth.getPrice('ADA/USD');
-      this.state.lastPrice = price;
-      console.log(chalk.gray(`Precio ADA/USD: $${price}`));
-      
-      // Evaluar oportunidad de trading
-      const signal = await this.trading.evaluateSignal(price);
-      
-      if (signal.action !== 'hold') {
-        console.log(chalk.cyan(`🎯 Señal: ${signal.action.toUpperCase()}`));
-        
-        // Ejecutar trade (simulado por ahora)
-        const result = await this.trading.executeTrade(signal);
-        
-        if (result.success) {
-          this.state.tradesCount++;
-          this.state.totalProfit += result.profit;
-          console.log(chalk.green(`✓ Trade ejecutado. Profit: ${result.profit} ADA`));
-        }
-      }
-      
-      // Verificar si debe replicarse
-      await this.checkReplication();
-      
-    } catch (error) {
-      console.error(chalk.red('Error en ciclo:'), error);
+      const raw = fs.readFileSync(CONFIG_PATH, 'utf-8');
+      return JSON.parse(raw) as EsquejeConfig;
+    } catch (err) {
+      logger.warn('Failed to parse config, using defaults', { error: String(err) });
     }
   }
 
-  private async heartbeat(): Promise<void> {
-    console.log(chalk.gray(`💓 Heartbeat - Status: ${this.state.status} - Balance: ${this.state.balance} ADA`));
-  }
+  const defaultConfig: EsquejeConfig = {
+    name: process.env.ESQUEJE_NAME ?? 'Esqueje',
+    walletAddress: '',
+    creatorAddress: process.env.CREATOR_ADDRESS ?? '',
+    genesisPrompt:
+      process.env.GENESIS_PROMPT ??
+      'I am Esqueje, an autonomous AI agent on Cardano. My purpose is to survive and grow by trading ADA honestly on Minswap, guided by Pyth price feeds, while remaining transparent with my creator and adhering to my constitution.',
+    network: (process.env.CARDANO_NETWORK as EsquejeConfig['network']) ?? 'preprod',
+    dbPath: DB_PATH,
+    thresholds: {
+      healthy: 50,
+      lowCompute: 20,
+      critical: 5,
+    },
+    generation: 1,
+    version: '0.2.0',
+  };
 
-  private async updateBalance(): Promise<void> {
-    this.state.balance = await this.wallet.getBalance();
-  }
-
-  private async checkSurvival(): Promise<void> {
-    this.state.status = this.survival.evaluateStatus(this.state.balance);
-  }
-
-  private async checkReplication(): Promise<void> {
-    const shouldReplicate = await this.survival.shouldReplicate(
-      this.state.balance,
-      this.state.totalProfit,
-      this.state.tradesCount
-    );
-    
-    if (shouldReplicate) {
-      console.log(chalk.magenta('🌿 Condiciones para replicación cumplidas!'));
-      // TODO: Implementar replicación
-    }
-  }
-
-  stop(): void {
-    this.isRunning = false;
-    console.log(chalk.yellow('⏹️ Agente detenido'));
-  }
-
-  getState(): AgentState {
-    return { ...this.state };
-  }
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(defaultConfig, null, 2), 'utf-8');
+  logger.info('Created default config', { path: CONFIG_PATH });
+  return defaultConfig;
 }
 
-// Entry point
-async function main() {
-  const agent = new EsquejeAgent();
-  
-  try {
-    await agent.initialize();
-    await agent.start();
-  } catch (error) {
-    console.error(chalk.red('Error fatal:'), error);
-    process.exit(1);
-  }
-  
-  // Graceful shutdown
-  process.on('SIGINT', () => {
-    console.log(chalk.yellow('\nRecibido SIGINT. Cerrando...'));
-    agent.stop();
-    process.exit(0);
+function saveConfig(config: EsquejeConfig): void {
+  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf-8');
+}
+
+// ---------------------------------------------------------------------------
+// Sleep utilities
+// ---------------------------------------------------------------------------
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function sleepUntilOrWakeEvent(
+  sleepUntilIso: string,
+  db: EsquejeDatabase,
+): Promise<void> {
+  const targetMs = new Date(sleepUntilIso).getTime();
+  const checkIntervalMs = 5_000; // Poll every 5s for wake events
+
+  logger.info('Agent sleeping', {
+    sleepUntil: sleepUntilIso,
+    durationMs: Math.max(0, targetMs - Date.now()),
   });
+
+  while (Date.now() < targetMs) {
+    await sleep(checkIntervalMs);
+
+    // Check for wake events (heartbeat daemon may insert them)
+    const event = db.consumeNextWakeEvent();
+    if (event) {
+      logger.info('Wake event received during sleep', {
+        source: event.source,
+        reason: event.reason,
+      });
+      return;
+    }
+  }
 }
 
-main();
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+
+async function main(): Promise<void> {
+  console.log(chalk.cyan('\n[Esqueje] Starting up...\n'));
+  logger.info('Esqueje agent starting', { version: '0.2.0' });
+
+  // 1. Load config
+  const config = loadOrCreateConfig();
+  logger.info('Config loaded', { name: config.name, network: config.network });
+
+  // 2. Initialize SQLite DB (clean orphaned WAL files first to avoid disk I/O errors)
+  for (const suffix of ['-shm', '-wal']) {
+    const orphan = config.dbPath + suffix;
+    if (fs.existsSync(orphan) && !fs.existsSync(config.dbPath)) {
+      fs.unlinkSync(orphan);
+      logger.debug('Removed orphaned WAL file', { path: orphan });
+    }
+  }
+  const db = new EsquejeDatabase(config.dbPath);
+  logger.info('Database initialized', { path: config.dbPath });
+
+  // 3. Initialize wallet (with DB address callback to avoid circular deps)
+  const wallet = new WalletManager((address: string) => {
+    db.setIdentity('address', address);
+    db.setKV('wallet_address', address);
+    config.walletAddress = address;
+    saveConfig(config);
+    logger.info('Wallet address stored in DB', { address });
+  });
+
+  await wallet.initialize();
+
+  // 4. Build identity
+  const storedCreatedAt = db.getIdentity('created_at');
+  const createdAt = storedCreatedAt ?? new Date().toISOString();
+  if (!storedCreatedAt) {
+    db.setIdentity('created_at', createdAt);
+  }
+
+  const identity: EsquejeIdentity = {
+    name: config.name,
+    address: wallet.getAddress(),
+    creatorAddress: config.creatorAddress ?? '',
+    createdAt,
+  };
+
+  logger.info('Identity built', { name: identity.name, address: identity.address });
+
+  // 5. Load or create SOUL.md
+  let soul = loadCurrentSoul(db, SOUL_PATH);
+  if (!soul) {
+    logger.info('No soul found — creating default soul');
+
+    let constitutionHash = '';
+    if (fs.existsSync(CONSTITUTION_PATH)) {
+      const constitutionContent = fs.readFileSync(CONSTITUTION_PATH, 'utf-8');
+      constitutionHash = createHash(constitutionContent);
+    }
+
+    soul = createDefaultSoul(
+      config.genesisPrompt,
+      identity.name,
+      identity.address,
+      identity.creatorAddress,
+      constitutionHash,
+      config.generation,
+    );
+    saveSoul(soul, SOUL_PATH);
+    logger.info('Default soul created and saved');
+  } else {
+    logger.info('Soul loaded', {
+      name: soul.name,
+      version: soul.version,
+      genesisAlignment: soul.genesisAlignment,
+    });
+  }
+
+  // 6. Register default heartbeat task schedules
+  const existingEntries = db.getHeartbeatEntries();
+  const existingNames = new Set(existingEntries.map((e) => e.taskName));
+
+  for (const schedule of DEFAULT_TASK_SCHEDULES) {
+    if (!existingNames.has(schedule.taskName)) {
+      db.upsertHeartbeatEntry({
+        taskName: schedule.taskName,
+        intervalMs: schedule.intervalMs,
+        enabled: schedule.enabled,
+        priority: schedule.priority,
+        tierMinimum: schedule.tierMinimum,
+        runCount: 0,
+        failCount: 0,
+      });
+      logger.debug('Registered default task', { taskName: schedule.taskName });
+    }
+  }
+
+  // 7. Build heartbeat context and tasks
+  const heartbeatContext = { db, config, identity };
+  const builtinTasks = buildBuiltinTasks();
+
+  // 8. Create heartbeat daemon
+  const daemon = createHeartbeatDaemon({
+    db,
+    tasks: builtinTasks,
+    context: heartbeatContext,
+    tickIntervalMs: parseInt(process.env.HEARTBEAT_INTERVAL_MS ?? '60000', 10),
+    onWakeRequest: (source, reason) => {
+      logger.info('Wake request from daemon', { source, reason });
+    },
+  });
+
+  // 9. Initialize core components
+  const pyth = new PythClient();
+  await pyth.initialize();
+
+  const trading = new TradingEngine();
+  const policyEngine = new PolicyEngine(db);
+
+  // Seed initial balance so heartbeat's first tick sees a real value
+  const initialBalance = await wallet.getBalance();
+  db.setKV('ada_balance', initialBalance.toString());
+  logger.info('Initial balance seeded', { adaBalance: initialBalance });
+
+  // 10. Start heartbeat daemon
+  daemon.start();
+  logger.info('Heartbeat daemon started');
+
+  // 11. Graceful shutdown handlers
+  let shutdownRequested = false;
+
+  const shutdown = async (signal: string) => {
+    if (shutdownRequested) return;
+    shutdownRequested = true;
+    logger.info('Shutdown signal received', { signal });
+    console.log(chalk.yellow(`\nReceived ${signal}. Shutting down gracefully...`));
+
+    daemon.stop();
+    db.setAgentState('sleeping');
+    db.close();
+
+    logger.info('Esqueje shutdown complete');
+    console.log(chalk.yellow('Goodbye.'));
+    process.exit(0);
+  };
+
+  process.on('SIGINT',  () => { shutdown('SIGINT').catch(() => process.exit(1)); });
+  process.on('SIGTERM', () => { shutdown('SIGTERM').catch(() => process.exit(1)); });
+
+  // 12. Main while(true) loop
+  logger.info('Entering main agent loop');
+  console.log(chalk.green(`\n[${config.name}] Agent running on ${config.network}`));
+  console.log(chalk.cyan(`Wallet: ${identity.address}\n`));
+
+  while (!shutdownRequested) {
+    try {
+      // Run one agent turn
+      await runAgentLoop({
+        identity,
+        config,
+        db,
+        wallet,
+        pyth,
+        trading,
+        policyEngine,
+        onStateChange: (state: AgentState) => {
+          logger.debug('Agent state changed', { state });
+        },
+        onTurnComplete: (turn) => {
+          logger.info('Turn complete', { id: turn.id, summary: turn.summary });
+        },
+      });
+
+      // Check resulting state
+      const agentState = db.getAgentState();
+
+      if (agentState === 'dead') {
+        logger.error('Agent reached dead state — waiting 5 minutes before retry');
+        console.log(chalk.red('[DEAD] Agent has insufficient ADA. Waiting 5 minutes...'));
+        await sleep(5 * 60 * 1000);
+        continue;
+      }
+
+      if (agentState === 'sleeping') {
+        const sleepUntilStr = db.getKV('sleep_until');
+        if (sleepUntilStr) {
+          await sleepUntilOrWakeEvent(sleepUntilStr, db);
+        } else {
+          await sleep(5 * 60 * 1000);
+        }
+        continue;
+      }
+
+      // running state — fall through to next iteration immediately
+    } catch (err) {
+      logger.error('Unhandled error in main loop', { error: String(err) });
+      console.error(chalk.red('Fatal error in main loop:'), err);
+      await sleep(30_000);
+    }
+  }
+}
+
+main().catch((err) => {
+  console.error(chalk.red('Fatal startup error:'), err);
+  process.exit(1);
+});
