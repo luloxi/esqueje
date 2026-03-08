@@ -11,10 +11,10 @@ export default function Header() {
       </Link>
       <nav className="flex items-center gap-1">
         <Link
-          href="/caracteristicas"
+          href="/como-funciona"
           className="rounded-full px-4 py-2 text-sm text-[var(--muted)] transition hover:bg-[var(--panel)] hover:text-white"
         >
-          Características
+          Cómo funciona
         </Link>
         <Link
           href="/instalar"
