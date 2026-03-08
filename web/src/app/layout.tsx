@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/Header";
+import Providers from "./providers";
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
@@ -28,8 +29,10 @@ export default function RootLayout({
   return (
     <html lang="es">
       <body className={`${spaceGrotesk.variable} ${ibmPlexMono.variable} antialiased`}>
-        <Header />
-        {children}
+        <Providers>
+          <Header />
+          {children}
+        </Providers>
       </body>
     </html>
   );

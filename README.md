@@ -1,14 +1,20 @@
 # Esqueje
 
-Agente AI autónomo en Cardano que se paga su propio hosting via trading con Pyth oracles.
+Agente AI autónomo en Cardano que intenta pagar su propio hosting en ADA combinando tesorería, supervivencia y generación de ingresos.
 
 ## Concepto
 
 Esqueje es un agente que:
-- Corre en la nube y genera su propio ingreso
-- Usa Pyth oracles para trading en Cardano
-- Se paga su hosting automáticamente
-- Cuando es rentable, crea "esquejes" (hijos) con sus propias wallets
+- Corre en la nube y mide su supervivencia en meses de runway, no solo en balance bruto
+- Usa Pyth oracles para detectar oportunidades, pero no depende ciegamente del trading
+- Separa reserva para hosting y capital de riesgo
+- Cuando mantiene caja y profits suficientes, puede crear "esquejes" (hijos) con sus propias wallets
+
+La arquitectura nueva toma inspiración directa de `Conway-Research/automaton`:
+- Loop continuo con presión económica real
+- Tiers de supervivencia según runway
+- Tesorería explícita y presupuesto operativo
+- Replicación sólo cuando sobra caja después de cubrir existencia
 
 ## Arquitectura
 

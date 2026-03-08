@@ -1,35 +1,47 @@
 import Link from 'next/link';
 
-const features = [
+const categories = [
   {
-    tag: 'Soul System',
-    title: 'Identidad que persiste',
-    body: 'SOUL.md guarda propósito, valores, estrategia y carácter financiero. El agente sabe quién es incluso después de reiniciarse.',
+    eyebrow: 'Identidad',
+    title: 'Un agente con memoria y carácter',
+    items: [
+      'SOUL.md persiste propósito, estrategia y carácter financiero.',
+      'SQLite guarda balance, trades, wake events y configuración.',
+      'El estado sobrevive a reinicios y redeploys.',
+    ],
   },
   {
-    tag: 'Heartbeat Daemon',
-    title: 'Pulso independiente',
-    body: 'Un daemon de fondo con recursive setTimeout corre aunque el agente duerma. Supervisa recursos, ejecuta tareas y lo despierta si algo cambia.',
+    eyebrow: 'Supervivencia',
+    title: 'No tradea a ciegas',
+    items: [
+      'Survival tiers frenan riesgo antes de quedarse sin caja.',
+      'Policy engine limita tamaño, frecuencia y reserva mínima.',
+      'Heartbeat daemon sigue vigilando aunque el loop duerma.',
+    ],
   },
   {
-    tag: 'Policy Engine',
-    title: 'No arriesga lo que no puede perder',
-    body: 'Reglas duras: nunca más del 10% en un trade, mínimo 2 ADA de reserva para fees, máximo 12 trades por hora.',
+    eyebrow: 'Operación',
+    title: 'Diseñado para vivir en un servidor',
+    items: [
+      'Corre 24/7 en un VPS y se despierta por eventos o timers.',
+      'Lee ADA real con Blockfrost y opera sobre Cardano.',
+      'Puede montarse en infraestructura pagada con ADA.',
+    ],
+  },
+];
+
+const highlights = [
+  {
+    title: 'Soberanía',
+    body: 'No depende de una sesión humana abierta. Guarda estado y vuelve a arrancar solo.',
   },
   {
-    tag: 'Survival Tiers',
-    title: 'Cuatro niveles de emergencia',
-    body: 'Healthy → Low Compute → Critical → Dead. La estrategia cambia antes de que la caja llegue a cero, con cooldowns para no saturar de alertas.',
+    title: 'Disciplina',
+    body: 'La prioridad no es operar más, sino durar más. La política manda sobre la emoción del mercado.',
   },
   {
-    tag: 'SQLite State',
-    title: 'Memoria real entre reinicios',
-    body: 'Historial de trades, balance, turnos, wake events y configuración persisten en SQLite usando el módulo nativo de Node.js.',
-  },
-  {
-    tag: 'Constitution',
-    title: 'Ética antes que supervivencia',
-    body: 'Tres leyes jerárquicas: nunca dañar, ganarse la existencia honestamente, no engañar al creador. Se heredan a cada hijo.',
+    title: 'Despliegue',
+    body: 'La guía propone un flujo simple: VPS, wallet operativa y fondeo desde Lace o cualquier wallet Cardano.',
   },
 ];
 
@@ -120,22 +132,40 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Features grid */}
+      {/* Feature categories */}
       <section className="mx-auto max-w-6xl px-4 py-10 md:px-6">
         <div className="mb-8">
           <div className="mb-2 font-mono text-xs uppercase tracking-[0.3em] text-[var(--accent)]">
-            Arquitectura
+            Por qué importa
           </div>
-          <h2 className="text-3xl font-bold md:text-4xl">Lo que lo mantiene vivo</h2>
+          <h2 className="text-3xl font-bold md:text-4xl">Características vendidas por categoría</h2>
         </div>
         <div className="grid gap-5 md:grid-cols-3">
-          {features.map((f) => (
-            <article key={f.tag} className="panel rounded-[1.5rem] p-6">
+          {categories.map((category) => (
+            <article key={category.eyebrow} className="panel rounded-[1.75rem] p-6">
               <div className="mb-3 inline-block rounded-full border border-[var(--border)] px-3 py-1 font-mono text-xs text-[var(--accent-2)]">
-                {f.tag}
+                {category.eyebrow}
               </div>
-              <h3 className="mb-2 text-lg font-semibold">{f.title}</h3>
-              <p className="text-sm leading-6 text-[var(--muted)]">{f.body}</p>
+              <h3 className="mb-4 text-xl font-semibold">{category.title}</h3>
+              <ul className="space-y-3">
+                {category.items.map((item) => (
+                  <li key={item} className="flex gap-3 text-sm leading-6 text-[var(--muted)]">
+                    <span className="text-[var(--accent)]">→</span>
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 py-4 md:px-6">
+        <div className="grid gap-4 md:grid-cols-3">
+          {highlights.map((item) => (
+            <article key={item.title} className="rounded-[1.5rem] border border-[var(--border)] bg-black/15 p-5">
+              <h3 className="mb-2 text-xl font-semibold">{item.title}</h3>
+              <p className="text-sm leading-6 text-[var(--muted)]">{item.body}</p>
             </article>
           ))}
         </div>
@@ -159,20 +189,35 @@ export default function Home() {
         </div>
       </section>
 
-      {/* CTA */}
-      <section className="mx-auto max-w-6xl px-4 py-14 md:px-6">
+      {/* CTAs */}
+      <section className="mx-auto max-w-6xl px-4 py-14 md:px-6 space-y-4">
         <div className="panel-strong flex flex-col items-start justify-between gap-6 rounded-[2rem] p-8 md:flex-row md:items-center">
           <div>
-            <h2 className="text-3xl font-bold">Listo para correr en 3 comandos</h2>
+            <h2 className="text-3xl font-bold">Gestioná el presupuesto de tus agentes</h2>
             <p className="mt-2 max-w-xl text-[var(--muted)]">
-              Clona, compila y ejecuta. Esqueje genera su wallet, su soul y su configuración en el primer arranque.
+              Conectá tu wallet y asigná ADA a cada instancia de Esqueje a través de un contrato Marlowe on-chain.
+              Los fondos que el agente no use vuelven a tu wallet al vencer el período.
+            </p>
+          </div>
+          <Link
+            href="/dashboard"
+            className="shrink-0 rounded-full bg-[var(--accent)] px-7 py-3 font-semibold text-[#08110d] transition hover:-translate-y-px"
+          >
+            Ir al Dashboard →
+          </Link>
+        </div>
+        <div className="flex flex-col items-start justify-between gap-6 rounded-[2rem] border border-[var(--border)] bg-black/10 p-8 md:flex-row md:items-center">
+          <div>
+            <h2 className="text-xl font-bold">Guía de instalación</h2>
+            <p className="mt-1 max-w-xl text-sm text-[var(--muted)]">
+              Protocolo paso a paso para desplegar en un VPS pagado con ADA.
             </p>
           </div>
           <Link
             href="/instalar"
-            className="shrink-0 rounded-full bg-white px-7 py-3 font-semibold text-[#08110d] transition hover:-translate-y-px"
+            className="shrink-0 rounded-full border border-[var(--border)] px-6 py-2.5 text-sm font-semibold text-white transition hover:border-[var(--accent)]"
           >
-            Ver guía de instalación →
+            Ver guía →
           </Link>
         </div>
       </section>

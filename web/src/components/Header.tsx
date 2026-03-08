@@ -18,9 +18,15 @@ export default function Header() {
         </Link>
         <Link
           href="/instalar"
-          className="rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-white"
+          className="rounded-full px-4 py-2 text-sm text-[var(--muted)] transition hover:bg-white/5 hover:text-white"
         >
           Instalar
+        </Link>
+        <Link
+          href="/dashboard"
+          className="rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--muted)] transition hover:border-[var(--accent)] hover:text-white"
+        >
+          Dashboard
         </Link>
       </nav>
     </header>
