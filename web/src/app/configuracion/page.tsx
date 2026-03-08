@@ -8,54 +8,141 @@ export default function Configuracion() {
           ← Volver al inicio
         </Link>
 
-        <h1 className="text-4xl font-bold text-gray-800 mb-8">Configuración</h1>
+        <h1 className="text-4xl font-bold text-gray-800 mb-8">Configuración Rápida</h1>
 
-        {/* Requisitos */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-bold text-green-700 mb-4">📋 Requisitos</h2>
+        {/* Paso 1 */}
+        <section className="mb-10">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">1</div>
+            <h2 className="text-xl font-bold text-gray-800">Elegir Hosting que acepte ADA</h2>
+          </div>
           
-          <ul className="list-disc list-inside text-gray-600 space-y-2">
-            <li>Node.js 18+</li>
-            <li>Git</li>
-            <li>Cuenta en Blockfrost (API key)</li>
-            <li>~100 ADA para fondear el agente (testnet o mainnet)</li>
-            <li>Servidor/cloud para hostear (VPS, Railway, etc.)</li>
-          </ul>
+          <p className="text-gray-600 mb-4">
+            Opciones verificadas que aceptan pagos con Cardano (ADA):
+          </p>
+          
+          <div className="grid md:grid-cols-2 gap-4">
+            {[
+              { name: 'ExtraVM', url: 'https://extravm.com', price: 'Desde $4.50/mes', features: 'VPS, 50+ cryptos, no KYC' },
+              { name: 'Cherry Servers', url: 'https://cherryservers.com', price: 'Pago por hora', features: 'VPS, API, 10+ cryptos' },
+              { name: 'Coin.Host', url: 'https://coin.host', price: 'Varía', features: 'CMS hosting, DDoS protection' },
+              { name: 'Navicosoft', url: 'https://navicosoft.com', price: 'Desde $5/mes', features: 'Cardano VPS especializado' },
+            ].map((host) => (
+              <a
+                key={host.name}
+                href={host.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block p-4 border rounded-lg hover:border-green-500 transition"
+              >
+                <div className="font-bold text-green-700">{host.name}</div>
+                <div className="text-sm text-gray-500">{host.price}</div>
+                <div className="text-sm text-gray-600 mt-1">{host.features}</div>
+              </a>
+            ))}
+          </div>
         </section>
 
-        {/* Instalación */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-bold text-green-700 mb-4">🚀 Instalación</h2>
+        {/* Paso 2 */}
+        <section className="mb-10">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">2</div>
+            <h2 className="text-xl font-bold text-gray-800">Instalar Esqueje</h2>
+          </div>
           
-          <div className="space-y-4">
-            <div className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
-              <pre>
-{`# 1. Clonar el repositorio
+          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
+            <pre className="text-sm">
+{`# Clonar y entrar al directorio
 git clone https://github.com/luloxi/esqueje.git
 cd esqueje/agent
 
-# 2. Instalar dependencias
+# Instalar dependencias
 npm install
 
-# 3. Configurar variables de entorno
-cp .env.example .env
-# Editar .env con tus credenciales
-
-# 4. Inicializar el agente
-npm run setup
-
-# 5. Iniciar en modo desarrollo
+# Iniciar el agente
 npm run dev`}
-              </pre>
+            </pre>
+          </div>
+        </section>
+
+        {/* Paso 3 */}
+        <section className="mb-10">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">3</div>
+            <h2 className="text-xl font-bold text-gray-800">Fondear la Wallet</h2>
+          </div>
+          
+          <p className="text-gray-600 mb-4">
+            Al iniciar, Esqueje genera una dirección de Cardano. Envía ADA a esa dirección:
+          </p>
+          
+          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
+            <p className="text-sm text-yellow-800">
+              <strong>Recomendado:</strong> Empezar con 50-100 ADA en testnet.
+              El agente mostrará su dirección en los logs.
+            </p>
+          </div>
+        </section>
+
+        {/* Paso 4 */}
+        <section className="mb-10">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-8 h-8 bg-green-600 text-white rounded-full flex items-center justify-center font-bold">4</div>
+            <h2 className="text-xl font-bold text-gray-800">Configurar Pago Automático (Opcional)</h2>
+          </div>
+          
+          <p className="text-gray-600 mb-4">
+            Para pagar el hosting automáticamente, configura:
+          </p>
+          
+          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
+            <pre className="text-sm">
+{`# .env
+HOSTING_PROVIDER=extravm  # o cherry, coinhost
+HOSTING_WALLET=addr1...    # dirección del proveedor
+PAYMENT_THRESHOLD=20       # ADA mínimo para pagar`}
+            </pre>
+          </div>
+        </section>
+
+        {/* Opciones de pago */}
+        <section className="mb-10">
+          <h2 className="text-2xl font-bold text-green-700 mb-4">💳 Opciones de Pago con ADA</h2>
+          
+          <div className="space-y-4">
+            <div className="bg-green-50 p-4 rounded-lg">
+              <h3 className="font-bold text-green-800 mb-2">Opción A: VPS con ADA nativo</h3>
+              <p className="text-gray-700 text-sm mb-2">
+                Proveedores como ExtraVM, Cherry Servers y Coin.Host aceptan ADA directamente
+                mediante procesadores como CoinGate o Coinify.
+              </p>
+              <span className="inline-block px-2 py-1 bg-green-200 text-green-800 text-xs rounded">Recomendado</span>
+            </div>
+            
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h3 className="font-bold text-blue-800 mb-2">Opción B: Bridge a Stablecoins</h3>
+              <p className="text-gray-700 text-sm mb-2">
+                Si el proveedor no acepta ADA, Esqueje puede swapear ADA → USDC en Minswap
+                y pagar con stablecoins.
+              </p>
+              <span className="inline-block px-2 py-1 bg-blue-200 text-blue-800 text-xs rounded">Alternativa</span>
+            </div>
+            
+            <div className="bg-purple-50 p-4 rounded-lg">
+              <h3 className="font-bold text-purple-800 mb-2">Opción C: Servicio Puente</h3>
+              <p className="text-gray-700 text-sm">
+                Crear un servicio intermedio que reciba ADA y pague el hosting en fiat/stablecoins
+                en nombre del agente.
+              </p>
             </div>
           </div>
         </section>
 
-        {/* Variables de entorno */}
-        <section className="mb-12">
+        {/* Variables */}
+        <section>
           <h2 className="text-2xl font-bold text-green-700 mb-4">⚙️ Variables de Entorno</h2>
           
-          <div className="bg-gray-50 p-4 rounded-lg">
+          <div className="bg-gray-50 p-4 rounded-lg overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
@@ -66,87 +153,23 @@ npm run dev`}
               </thead>
               <tbody className="text-gray-600">
                 <tr className="border-b">
-                  <td className="py-2 font-mono">PYTH_HERMES_URL</td>
-                  <td className="py-2">Endpoint de Pyth Hermes</td>
-                  <td className="py-2">https://hermes.pyth.network</td>
-                </tr>
-                <tr className="border-b">
                   <td className="py-2 font-mono">CARDANO_NETWORK</td>
                   <td className="py-2">mainnet o testnet</td>
                   <td className="py-2">testnet</td>
-                </tr>
-                <tr className="border-b">
-                  <td className="py-2 font-mono">BLOCKFROST_API_KEY</td>
-                  <td className="py-2">API key de Blockfrost</td>
-                  <td className="py-2">-</td>
                 </tr>
                 <tr className="border-b">
                   <td className="py-2 font-mono">TRADING_INTERVAL</td>
                   <td className="py-2">Segundos entre trades</td>
                   <td className="py-2">300</td>
                 </tr>
+                <tr className="border-b">
+                  <td className="py-2 font-mono">HEALTHY_THRESHOLD</td>
+                  <td className="py-2">ADA mínimo para estado healthy</td>
+                  <td className="py-2">50</td>
+                </tr>
               </tbody>
             </table>
           </div>
-        </section>
-
-        {/* Deploy */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-bold text-green-700 mb-4">🌐 Deploy</h2>
-          
-          <h3 className="font-bold text-gray-800 mb-2">Opción 1: VPS (Recomendado)</h3>
-          <div className="bg-gray-900 text-gray-100 p-4 rounded-lg mb-4 overflow-x-auto">
-            <pre>
-{`# En tu servidor
-npm run build
-npm start
-
-# Usar PM2 para mantenerlo corriendo
-npm install -g pm2
-pm2 start dist/index.js --name esqueje
-pm2 save
-pm2 startup`}
-            </pre>
-          </div>
-
-          <h3 className="font-bold text-gray-800 mb-2">Opción 2: Railway/Render</h3>
-          <p className="text-gray-600 mb-2">
-            Conectar el repo directamente. El Procfile ya está incluido.
-          </p>
-        </section>
-
-        {/* Fondear */}
-        <section className="mb-12">
-          <h2 className="text-2xl font-bold text-green-700 mb-4">💰 Fondear el Agente</h2>
-          
-          <p className="text-gray-600 mb-4">
-            Después de la instalación, el agente generará una dirección de Cardano.
-            Envía ADA a esa dirección para empezar:
-          </p>
-          
-          <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4">
-            <p className="text-sm text-yellow-800">
-              <strong>Recomendado:</strong> Empezar con 50-100 ADA en testnet
-              para probar antes de usar mainnet.
-            </p>
-          </div>
-        </section>
-
-        {/* Monitoreo */}
-        <section>
-          <h2 className="text-2xl font-bold text-green-700 mb-4">📈 Monitoreo</h2>
-          
-          <p className="text-gray-600 mb-4">
-            El agente loguea su estado en tiempo real. Puedes ver:
-          </p>
-          
-          <ul className="list-disc list-inside text-gray-600 space-y-2">
-            <li>Balance actual</li>
-            <li>Trades ejecutados</li>
-            <li>Profit/loss total</li>
-            <li>Estado de supervivencia</li>
-            <li>Precios de Pyth</li>
-          </ul>
         </section>
       </div>
     </div>

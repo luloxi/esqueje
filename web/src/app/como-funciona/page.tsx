@@ -103,6 +103,51 @@ export default function ComoFunciona() {
           </div>
         </section>
 
+        {/* Pago de Hosting */}
+        <section className="mb-12">
+          <h2 className="text-2xl font-bold text-green-700 mb-4">💳 Pago de Hosting con ADA</h2>
+          
+          <p className="text-gray-600 mb-4">
+            Esqueje puede pagar su propio hosting usando Cardano (ADA) de varias formas:
+          </p>
+          
+          <div className="grid md:grid-cols-3 gap-4 mb-6">
+            <div className="bg-green-50 p-4 rounded-lg">
+              <div className="font-bold text-green-800 mb-2">🏆 Opción A: VPS Nativo</div>
+              <p className="text-sm text-gray-700">
+                ExtraVM, Cherry Servers y otros aceptan ADA directamente.
+                El agente transfiere ADA a la dirección del proveedor.
+              </p>
+            </div>
+            
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="font-bold text-blue-800 mb-2">🔄 Opción B: Swap a Stablecoins</div>
+              <p className="text-sm text-gray-700">
+                Si el proveedor no acepta ADA, Esqueje swapea ADA → USDC
+                en Minswap y paga con stablecoins.
+              </p>
+            </div>
+            
+            <div className="bg-purple-50 p-4 rounded-lg">
+              <div className="font-bold text-purple-800 mb-2">🌉 Opción C: Bridge</div>
+              <p className="text-sm text-gray-700">
+                Servicio intermedio que recibe ADA y paga el hosting
+                en fiat o stablecoins en nombre del agente.
+              </p>
+            </div>
+          </div>
+          
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="font-bold text-gray-800 mb-2">Proveedores que aceptan ADA:</h3>
+            <ul className="list-disc list-inside text-gray-600">
+              <li><strong>ExtraVM:</strong> VPS desde $4.50/mes, 50+ cryptos, no KYC</li>
+              <li><strong>Cherry Servers:</strong> Pago por hora, API, 10+ cryptos</li>
+              <li><strong>Coin.Host:</strong> CMS hosting con DDoS protection</li>
+              <li><strong>Navicosoft:</strong> Especializado en Cardano VPS</li>
+            </ul>
+          </div>
+        </section>
+
         {/* Estrategia */}
         <section>
           <h2 className="text-2xl font-bold text-green-700 mb-4">🎯 Estrategia de Trading</h2>
