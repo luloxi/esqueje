@@ -53,9 +53,23 @@ LOG_LEVEL=info
 ```bash
 TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxyz
 TELEGRAM_CHAT_IDS=tu_chat_id
+
+# Alertas inteligentes (opcional)
+ALERT_MIN_PROFIT_ADA=5          # Alertar si profit > 5 ADA
+ALERT_CRITICAL_BALANCE_ADA=100  # Alertar si balance < 100 ADA
+ALERT_DAILY_SUMMARY=true        # Resumen diario
 ```
 
 Para obtener tu chat ID, habla con [@userinfobot](https://t.me/userinfobot).
+
+**Alertas Automáticas:**
+El agente envía alertas automáticas cuando:
+- 🎉 Trade exitoso (>5 ADA profit)
+- ⚠️ Pérdida significativa en trade
+- 🚨 Balance crítico (bajo el mínimo)
+- 🌱 Replicación posible
+- 💎 Oportunidad de arbitraje detectada
+- 📊 Resumen diario (si está habilitado)
 
 **Comandos disponibles en Telegram:**
 - `/start` - Mensaje de bienvenida

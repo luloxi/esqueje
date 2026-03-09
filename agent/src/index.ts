@@ -25,6 +25,7 @@ import {
 } from './soul/model.js';
 import { createLogger } from './observability/logger.js';
 import { TelegramInterface } from './telegram/interface.js';
+import { AlertManager } from './alerts/manager.js';
 import type { EsquejeConfig, EsquejeIdentity, AgentState } from './types.js';
 
 const logger = createLogger('main');
@@ -276,6 +277,8 @@ async function main(): Promise<void> {
 
   // 10. Initialize Telegram interface (if configured)
   let telegram: TelegramInterface | undefined;
+  let alerts: AlertManager | undefined;
+  
   if (process.env.TELEGRAM_BOT_TOKEN) {
     telegram = new TelegramInterface(
       {
@@ -289,12 +292,27 @@ async function main(): Promise<void> {
       config
     );
     telegram.start();
+    
+    // Initialize alert manager
+    alerts = new AlertManager(
+      telegram,
+      db,
+      economics,
+      {
+        minProfitThresholdAda: parseFloat(process.env.ALERT_MIN_PROFIT_ADA || '5'),
+        criticalBalanceThresholdAda: parseFloat(process.env.ALERT_CRITICAL_BALANCE_ADA || '100'),
+        opportunityMinProfitPct: parseFloat(process.env.ALERT_OPPORTUNITY_PCT || '10'),
+        dailySummaryEnabled: process.env.ALERT_DAILY_SUMMARY === 'true',
+      }
+    );
+    
     await telegram.sendAlert(
       `🌱 *Esqueje Started*\n\n` +
       `Name: ${identity.name}\n` +
       `Address: \`${identity.address}\`\n` +
       `Network: ${config.network}\n\n` +
-      `Agent is now running and will report important events here.`
+      `Agent is now running with smart alerts enabled.\n` +
+      `I'll notify you of important events automatically.`
     );
   }
 
@@ -355,11 +373,21 @@ async function main(): Promise<void> {
         trading,
         policyEngine,
         economics,
-        onStateChange: (state: AgentState) => {
+        onStateChange: (state: AgentState, oldState?: AgentState) => {
           logger.debug('Agent state changed', { state });
+          if (alerts && oldState && oldState !== state) {
+            alerts.onStateChange(oldState, state).catch(console.error);
+          }
         },
-        onTurnComplete: (turn) => {
+        onTurnComplete: async (turn) => {
           logger.info('Turn complete', { id: turn.id, summary: turn.summary });
+          
+          // Check balance and send alerts
+          if (alerts) {
+            const balance = await wallet.getBalance();
+            await alerts.onBalanceCheck(balance);
+            await alerts.onReplicationCheck(balance);
+          }
         },
       });
 

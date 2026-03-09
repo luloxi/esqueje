@@ -368,6 +368,39 @@ export class EsquejeDatabase {
     ).map((r) => ({ ...r, txHash: r.tx_hash, success: r.success === 1 }));
   }
 
+  getTradesForDate(date: string): Array<{
+    id: number;
+    action: string;
+    price: number;
+    amount: number | null;
+    profit: number | null;
+    txHash: string | null;
+    success: boolean;
+    reason: string | null;
+    timestamp: string;
+  }> {
+    return (
+      this.raw
+        .prepare(
+          `SELECT id, action, price, amount, profit, tx_hash, success, reason, timestamp
+           FROM trades
+           WHERE DATE(timestamp) = ?
+           ORDER BY id DESC`
+        )
+        .all(date) as Array<{
+          id: number;
+          action: string;
+          price: number;
+          amount: number | null;
+          profit: number | null;
+          tx_hash: string | null;
+          success: number;
+          reason: string | null;
+          timestamp: string;
+        }>
+    ).map((r) => ({ ...r, txHash: r.tx_hash, success: r.success === 1 }));
+  }
+
   // ---- Identity (alias for KV with prefix) ----
 
   getIdentity(key: string): string | null {
