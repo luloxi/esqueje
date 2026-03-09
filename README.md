@@ -67,9 +67,17 @@ El agente envía alertas automáticas cuando:
 - 🎉 Trade exitoso (>5 ADA profit)
 - ⚠️ Pérdida significativa en trade
 - 🚨 Balance crítico (bajo el mínimo)
-- 🌱 Replicación posible
+- 🌱 Replicación posible o completada
 - 💎 Oportunidad de arbitraje detectada
 - 📊 Resumen diario (si está habilitado)
+
+**Auto-Replicación:**
+Cuando `REPLICATION_ENABLED=true`, el agente:
+- Se replica automáticamente al alcanzar >1000 ADA
+- Crea wallet hija, transfiere 500 ADA, genera configuración
+- Notifica por Telegram en cada paso
+- Respeta cooldown de 24h entre replicaciones
+- Límite de 10 generaciones por defecto
 
 **Comandos disponibles en Telegram:**
 - `/start` - Mensaje de bienvenida

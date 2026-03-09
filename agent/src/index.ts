@@ -26,6 +26,7 @@ import {
 import { createLogger } from './observability/logger.js';
 import { TelegramInterface } from './telegram/interface.js';
 import { AlertManager } from './alerts/manager.js';
+import { ReplicationEngine } from './replication/engine.js';
 import type { EsquejeConfig, EsquejeIdentity, AgentState } from './types.js';
 
 const logger = createLogger('main');
@@ -306,13 +307,31 @@ async function main(): Promise<void> {
       }
     );
     
+    // Initialize replication engine
+    const replication = new ReplicationEngine(
+      db,
+      wallet,
+      economics,
+      identity,
+      config,
+      {
+        enabled: process.env.REPLICATION_ENABLED === 'true',
+        minParentBalanceAda: parseInt(process.env.REPLICATION_MIN_PARENT_BALANCE || '1000'),
+        childSeedAda: parseInt(process.env.REPLICATION_CHILD_SEED || '500'),
+        requireHumanApproval: process.env.REPLICATION_REQUIRE_APPROVAL !== 'false',
+        maxGenerations: parseInt(process.env.REPLICATION_MAX_GENERATIONS || '10'),
+        cooldownHours: parseInt(process.env.REPLICATION_COOLDOWN_HOURS || '24'),
+      },
+      telegram
+    );
+    
     await telegram.sendAlert(
       `🌱 *Esqueje Started*\n\n` +
       `Name: ${identity.name}\n` +
       `Address: \`${identity.address}\`\n` +
-      `Network: ${config.network}\n\n` +
-      `Agent is now running with smart alerts enabled.\n` +
-      `I'll notify you of important events automatically.`
+      `Network: ${config.network}\n` +
+      `Generation: ${config.generation}\n\n` +
+      `Smart alerts and auto-replication enabled.`
     );
   }
 
@@ -387,6 +406,20 @@ async function main(): Promise<void> {
             const balance = await wallet.getBalance();
             await alerts.onBalanceCheck(balance);
             await alerts.onReplicationCheck(balance);
+          }
+          
+          // Check auto-replication
+          if (replication) {
+            const check = await replication.shouldReplicate();
+            if (check.should) {
+              logger.info('Auto-replication conditions met', { reason: check.reason });
+              const result = await replication.replicate();
+              if (result.success) {
+                logger.info('Replication successful', { childAddress: result.childAddress });
+              } else {
+                logger.error('Replication failed', { error: result.error });
+              }
+            }
           }
         },
       });
