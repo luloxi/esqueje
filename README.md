@@ -6,6 +6,7 @@ Runtime autónomo sobre Cardano que persiste identidad, mide runway en ADA y só
 
 - Se separa `supervivencia` de `viabilidad económica`.
 - El runtime usa una tesorería explícita con burn mensual, reserva de runway y capital mínimo por agente.
+- **NUEVO: Integración con Telegram** - Controla tu agente y recibe alertas vía Telegram.
 - La web y el dashboard ahora distinguen entre:
   - humano que lanza por primera vez
   - agente ya fondeado que replica usando cuentas humanas ya aprobadas
@@ -32,7 +33,7 @@ npm install
 npm run build
 ```
 
-Crear `.env`:
+Crear `.env` (ver `.env.example` para todas las opciones):
 
 ```bash
 ESQUEJE_MNEMONIC="word1 word2 ... word24"
@@ -41,6 +42,31 @@ BLOCKFROST_KEY=mainnetXXXXXXXXXXXXXXXX
 CREATOR_ADDRESS=addr1...
 LOG_LEVEL=info
 ```
+
+### Configurar Telegram (Opcional pero recomendado)
+
+1. Habla con [@BotFather](https://t.me/botfather) en Telegram
+2. Crea un nuevo bot con `/newbot`
+3. Copia el token que te da
+4. Agrega a tu `.env`:
+
+```bash
+TELEGRAM_BOT_TOKEN=123456789:ABCdefGHIjklMNOpqrSTUvwxyz
+TELEGRAM_CHAT_IDS=tu_chat_id
+```
+
+Para obtener tu chat ID, habla con [@userinfobot](https://t.me/userinfobot).
+
+**Comandos disponibles en Telegram:**
+- `/start` - Mensaje de bienvenida
+- `/status` - Estado del agente
+- `/balance` - Balance en ADA
+- `/trades` - Últimas operaciones
+- `/economics` - Salud económica
+- `/sleep` - Poner a dormir
+- `/wake` - Despertar
+- `/replicate` - Verificar si puede replicarse
+- `/help` - Mostrar todos los comandos
 
 Arrancar:
 

@@ -13,10 +13,12 @@
     "@meshsdk/core": "^1.9.0-beta.101",
     "axios": "^1.8.0",
     "chalk": "^5.4.0",
-    "dotenv": "^16.4.0"
+    "dotenv": "^16.4.0",
+    "node-telegram-bot-api": "^0.66.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "@types/node-telegram-bot-api": "^0.64.0",
     "tsx": "^4.7.0",
     "typescript": "^5.9.0"
   }

@@ -24,6 +24,7 @@ import {
   createHash,
 } from './soul/model.js';
 import { createLogger } from './observability/logger.js';
+import { TelegramInterface } from './telegram/interface.js';
 import type { EsquejeConfig, EsquejeIdentity, AgentState } from './types.js';
 
 const logger = createLogger('main');
@@ -273,6 +274,30 @@ async function main(): Promise<void> {
   const trading = new TradingEngine();
   const policyEngine = new PolicyEngine(db, economics);
 
+  // 10. Initialize Telegram interface (if configured)
+  let telegram: TelegramInterface | undefined;
+  if (process.env.TELEGRAM_BOT_TOKEN) {
+    telegram = new TelegramInterface(
+      {
+        botToken: process.env.TELEGRAM_BOT_TOKEN,
+        allowedChatIds: process.env.TELEGRAM_CHAT_IDS?.split(',') || [],
+      },
+      db,
+      wallet,
+      economics,
+      identity,
+      config
+    );
+    telegram.start();
+    await telegram.sendAlert(
+      `🌱 *Esqueje Started*\n\n` +
+      `Name: ${identity.name}\n` +
+      `Address: \`${identity.address}\`\n` +
+      `Network: ${config.network}\n\n` +
+      `Agent is now running and will report important events here.`
+    );
+  }
+
   // Seed initial balance so heartbeat's first tick sees a real value
   const initialBalance = await wallet.getBalance();
   db.setKV('ada_balance', initialBalance.toString());
@@ -290,6 +315,11 @@ async function main(): Promise<void> {
     shutdownRequested = true;
     logger.info('Shutdown signal received', { signal });
     console.log(chalk.yellow(`\nReceived ${signal}. Shutting down gracefully...`));
+
+    if (telegram) {
+      await telegram.sendAlert('🛑 *Esqueje Shutting Down*\n\nAgent is stopping gracefully. See you soon!');
+      telegram.stop();
+    }
 
     daemon.stop();
     db.setAgentState('sleeping');
